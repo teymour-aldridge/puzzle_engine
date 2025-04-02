@@ -1,0 +1,15 @@
+[package]
+name = "cartesian_maze_puzzle"
+version = "0.1.0"
+edition = "2021"
+authors = ["Andrew Sims andrew,simsd.@gmail.com"]
+description = "An engine for puzzles."
+license = "MIT"
+repository = "https://github.com/Andrewsimsd/puzzle_engine"
+homepage = "https://github.com/Andrewsimsd/puzzle_engine"
+readme = "README.md"
+keywords = ["puzzle", "engine"]
+categories = ["games"]
+
+[dependencies]
+rand = "0.9"
