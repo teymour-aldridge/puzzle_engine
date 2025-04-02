@@ -1,5 +1,4 @@
 # puzzle_engine
-Here’s a polished and pretty `README.md` for your `puzzle_engine` crate, designed to look great on GitHub and crates.io. It introduces the project, highlights its current features (`grid_maze`), and hints at future extensibility.
 
 ---
 
