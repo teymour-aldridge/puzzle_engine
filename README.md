@@ -8,7 +8,6 @@ Here’s a polished and pretty `README.md` for your `puzzle_engine` crate, desig
 [![Crates.io](https://img.shields.io/crates/v/puzzle_engine.svg)](https://crates.io/crates/puzzle_engine)
 [![Documentation](https://docs.rs/puzzle_engine/badge.svg)](https://docs.rs/puzzle_engine)
 [![License](https://img.shields.io/crates/l/puzzle_engine)](LICENSE)
-[![CI](https://github.com/your-username/puzzle_engine/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/puzzle_engine/actions)
 
 > A modular Rust engine for building and solving puzzles — starting with grid-based mazes and ready to grow 🧩
 
