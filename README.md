@@ -3,7 +3,6 @@ Here’s a polished and pretty `README.md` for your `puzzle_engine` crate, desig
 
 ---
 
-```markdown
 # 🧠 puzzle_engine
 
 [![Crates.io](https://img.shields.io/crates/v/puzzle_engine.svg)](https://crates.io/crates/puzzle_engine)
@@ -134,8 +133,4 @@ See [LICENSE](LICENSE) for details.
 ---
 
 Built with 🧩 and 💛 by [Your Name](https://github.com/andrewsimsd)
-```
 
----
-
-Let me know if you'd like a matching `Cargo.toml` metadata block, GitHub Actions CI file, or scaffold for the next puzzle type!
