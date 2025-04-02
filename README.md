@@ -1,7 +1,3 @@
-# puzzle_engine
-
----
-
 # 🧠 puzzle_engine
 
 [![Crates.io](https://img.shields.io/crates/v/puzzle_engine.svg)](https://crates.io/crates/puzzle_engine)
