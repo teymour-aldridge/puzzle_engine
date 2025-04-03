@@ -13,9 +13,13 @@ A modular Rust engine for building and solving puzzles.
 
 **`puzzle_engine`** is a general-purpose puzzle library written in Rust. It's designed with extensibility and clarity in mind — ideal for games, educational tools, or AI challenges.
 
-This crate currently includes support for the following:  
-- **grid mazes**, a 2 dimensional maze generated using randomized DFS.
-- **network mazes**, a type of maze that consists of a randomly generated network of nodes. 
+This crate currently includes support for the following: 
+### Mazes 
+- **Grid Mazes**, a 2 dimensional maze generated using randomized DFS.
+- **Network Mazes**, a type of maze that consists of a randomly generated network of nodes. 
+### Ciphers
+- **Caesar**, A simple cipher where each letter is shifted by a fixed number of positions in the alphabet.
+- **Vigenere**, A simple cipher where each character is encrypted using a corresponding shift from the keyword.
 
 ---
 
@@ -26,6 +30,7 @@ This crate currently includes support for the following:
 ✅ Fully connected mazes — no isolated areas  
 ✅ Built-in test coverage and examples  
 ✅ Easy to extend with other puzzles in the future
+✅ Simple ciphers
 
 ---
 
@@ -75,7 +80,7 @@ Planned puzzle modules:
 
 - [x] Grid Maze (DFS-based)
 - [x] Network Maze
-- [ ] Sudoku (validator + solver)
+- [ ] More Ciphers
 - [ ] Nonograms
 - [ ] Word search / Crossword generator
 - [ ] Sokoban-style logic puzzles
