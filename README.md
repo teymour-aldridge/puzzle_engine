@@ -3,8 +3,9 @@
 [![Crates.io](https://img.shields.io/crates/v/puzzle_engine.svg)](https://crates.io/crates/puzzle_engine)
 [![Documentation](https://docs.rs/puzzle_engine/badge.svg)](https://docs.rs/puzzle_engine)
 [![License](https://img.shields.io/crates/l/puzzle_engine)](LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?logo=github)](https://github.com/andrewsimsd/puzzle_engine)
 
-> A modular Rust engine for building and solving puzzles.
+A modular Rust engine for building and solving puzzles.
 
 ---
 
