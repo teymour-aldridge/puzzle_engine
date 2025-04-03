@@ -29,7 +29,7 @@ This crate currently includes support for the following:
 ✅ Minimal API to move through and solve mazes  
 ✅ Fully connected mazes — no isolated areas  
 ✅ Built-in test coverage and examples  
-✅ Easy to extend with other puzzles in the future
+✅ Easy to extend with other puzzles in the future   
 ✅ Simple ciphers
 
 ---
