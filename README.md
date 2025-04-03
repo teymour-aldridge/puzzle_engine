@@ -72,6 +72,21 @@ fn main() {
 }
 ```
 
+## 🧩 Example: Vigenere Cipher
+
+```rust
+use puzzle_engine::cipher::vigenere_cipher::Vigenere;
+use puzzle_engine::cipher::prelude::*;
+
+fn main() {
+    let v = Vigenere::new("KEY");
+    let plain = "Attack at dawn!";
+    let encrypted = v.encrypt(plain);
+    let decrypted = v.decrypt(&encrypted);
+     println!("plain: {}, encrypted: {}", plain, encrypted);
+}
+```
+
 ---
 
 ## 🔮 Roadmap
