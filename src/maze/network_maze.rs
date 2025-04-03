@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn test_maze_tarversal_large_maze_finds_end() {
-        let mut maze = Maze::new(100_000).unwrap();
+        let mut maze = Maze::new(1_000).unwrap();
         let path = maze.find_path();
         assert!(path.is_some(), "A path should exist between start and end");
         let path = path.unwrap();

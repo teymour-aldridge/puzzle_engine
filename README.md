@@ -12,9 +12,9 @@
 
 **`puzzle_engine`** is a general-purpose puzzle library written in Rust. It's designed with extensibility and clarity in mind — ideal for games, educational tools, or AI challenges.
 
-This crate currently includes support for the following:
-**grid mazes**, a 2 dimensional maze generated using randomized DFS.
-**network mazes**, a type of maze that consists of a randomly generated network of nodes. 
+This crate currently includes support for the following:  
+- **grid mazes**, a 2 dimensional maze generated using randomized DFS.
+- **network mazes**, a type of maze that consists of a randomly generated network of nodes. 
 
 ---
 
@@ -65,33 +65,6 @@ fn main() {
     }
 }
 ```
-
----
-
-## 📦 Installation
-
-Add the following to your `Cargo.toml`:
-
-```toml
-[dependencies]
-puzzle_engine = "0.3"
-```
-
----
-
-## 🧪 Tests
-
-Run tests with:
-
-```bash
-cargo test
-```
-
-Includes checks for:
-
-- Valid movement and boundary logic
-- Maze completeness
-- Player reaching the end
 
 ---
 
