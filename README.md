@@ -4,7 +4,7 @@
 [![Documentation](https://docs.rs/puzzle_engine/badge.svg)](https://docs.rs/puzzle_engine)
 [![License](https://img.shields.io/crates/l/puzzle_engine)](LICENSE)
 
-> A modular Rust engine for building and solving puzzles — starting with grid-based mazes and ready to grow 🧩
+> A modular Rust engine for building and solving puzzles.
 
 ---
 
@@ -12,7 +12,9 @@
 
 **`puzzle_engine`** is a general-purpose puzzle library written in Rust. It's designed with extensibility and clarity in mind — ideal for games, educational tools, or AI challenges.
 
-This crate currently includes support for **grid mazes**, a type of perfect maze generated using randomized DFS. More puzzle types (Sudoku, Nonograms, Word Puzzles, etc.) are coming soon!
+This crate currently includes support for the following:
+**grid mazes**, a 2 dimensional maze generated using randomized DFS.
+**network mazes**, a type of maze that consists of a randomly generated network of nodes. 
 
 ---
 
@@ -46,6 +48,24 @@ fn main() {
 }
 ```
 
+## 🧩 Example: Network Maze
+
+```rust
+use puzzle_engine::network_maze::Maze;
+
+fn main() {
+    let mut maze = Maze::new(10).unwrap();
+    let path = maze.find_path();
+    let path = path.unwrap();
+    for next_node in path.iter().skip(1){
+        maze.traverse(next_node.clone()).unwrap();
+    }
+    if maze.is_at_end() {
+        println!("Maze solved!");
+    }
+}
+```
+
 ---
 
 ## 📦 Installation
@@ -56,18 +76,6 @@ Add the following to your `Cargo.toml`:
 [dependencies]
 puzzle_engine = "0.3"
 ```
-
----
-
-## 📚 Modules
-
-### 🧱 `grid_maze`
-
-A classic maze represented as a 2D grid. Each cell connects to neighbors via randomized depth-first search.
-
-- `Maze::new(width, height)` — Create a maze
-- `maze.try_move(Direction)` — Move the player if there's a path
-- `maze.is_at_end()` — Check if the player has reached the goal
 
 ---
 
@@ -92,6 +100,7 @@ Includes checks for:
 Planned puzzle modules:
 
 - [x] Grid Maze (DFS-based)
+- [x] Network Maze
 - [ ] Sudoku (validator + solver)
 - [ ] Nonograms
 - [ ] Word search / Crossword generator
