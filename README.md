@@ -20,8 +20,7 @@ This crate currently includes support for **grid mazes**, a type of perfect maze
 
 ✅ Procedural maze generation using randomized DFS  
 ✅ Minimal API to move through and solve mazes  
-✅ Fully connected (perfect) mazes — no isolated areas  
-✅ Lightweight and dependency-free (except `rand`)  
+✅ Fully connected mazes — no isolated areas  
 ✅ Built-in test coverage and examples  
 ✅ Easy to extend with other puzzles in the future
 
@@ -55,7 +54,7 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-puzzle_engine = "0.1"
+puzzle_engine = "0.3"
 ```
 
 ---
@@ -126,5 +125,5 @@ See [LICENSE](LICENSE) for details.
 
 ---
 
-Built with 🧩 and 💛 by [Your Name](https://github.com/andrewsimsd)
+Built with 🧩 and 💛 by [Andrew Sims](https://github.com/andrewsimsd)
 

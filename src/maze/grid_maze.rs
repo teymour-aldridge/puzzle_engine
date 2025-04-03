@@ -40,9 +40,9 @@ impl Maze {
     /// # Examples
     ///
     /// ```rust
-    /// use cartesian_maze_puzzle;
-    /// let maze = cartesian_maze_puzzle::Maze::new(5, 5);
-    /// assert_eq!(maze.player, cartesian_maze_puzzle::Position { x: 0, y: 0 });
+    /// use puzzle_engine;
+    /// let maze = puzzle_engine::maze::grid_maze::Maze::new(5, 5);
+    /// assert_eq!(maze.player,puzzle_engine::maze::grid_maze::Position { x: 0, y: 0 });
     /// ```
     pub fn new(width: usize, height: usize) -> Self {
         let start = Position { x: 0, y: 0 };
@@ -107,9 +107,9 @@ impl Maze {
     /// # Examples
     ///
     /// ```rust
-    /// use cartesian_maze_puzzle;
-    /// let mut maze = cartesian_maze_puzzle::Maze::new(4, 4);
-    /// maze.try_move(cartesian_maze_puzzle::Direction::East);
+    /// use puzzle_engine;
+    /// let mut maze = puzzle_engine::maze::grid_maze::Maze::new(4, 4);
+    /// maze.try_move(puzzle_engine::maze::grid_maze::Direction::East);
     /// ```
     pub fn try_move(&mut self, dir: Direction) -> bool {
         if let Some(new_pos) = self.move_pos(self.player, dir) {
@@ -130,8 +130,8 @@ impl Maze {
     /// # Examples
     ///
     /// ```rust
-    /// use cartesian_maze_puzzle;
-    /// let mut maze = cartesian_maze_puzzle::Maze::new(3, 3);
+    /// use puzzle_engine;
+    /// let mut maze = puzzle_engine::maze::grid_maze::Maze::new(3, 3);
     /// // simulate movement...
     /// if maze.is_at_end() {
     ///     println!("Maze solved!");
