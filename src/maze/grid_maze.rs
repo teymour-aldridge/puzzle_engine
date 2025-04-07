@@ -9,7 +9,7 @@ pub struct Position {
 }
 
 /// Cardinal directions used to move within the maze.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     North,
     South,
