@@ -6,8 +6,7 @@ pub use super::traits::CipherPuzzle;
 ///
 /// ## Example
 /// ```rust
-/// use puzzle_engine::cipher::vigenere_cipher::Vigenere;
-/// use puzzle_engine::cipher::prelude::*;
+/// use puzzle_engine::cipher::vigenere_cipher::{Vigenere, CipherPuzzle};
 /// let v = Vigenere::new("KEY");
 /// let msg = "ATTACKATDAWN";
 /// let encrypted = v.encrypt(msg);

@@ -8,8 +8,7 @@ use super::util::shift_char;
 ///
 /// ## Example
 /// ```rust
-/// use puzzle_engine::cipher::caesar_cipher::Caesar;
-/// use puzzle_engine::cipher::prelude::*;
+/// use puzzle_engine::cipher::caesar_cipher::{Caesar, CipherPuzzle};
 /// let c = Caesar::new(1);
 /// assert_eq!(c.encrypt("ABC"), "BCD");
 /// assert_eq!(c.decrypt("BCD"), "ABC");
