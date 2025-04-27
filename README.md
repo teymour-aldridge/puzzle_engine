@@ -19,8 +19,9 @@ This crate currently includes support for the following:
 - **Network Mazes**, a type of maze that consists of a randomly generated network of nodes. 
 ### Ciphers
 - **Caesar**, A simple cipher where each letter is shifted by a fixed number of positions in the alphabet.
-- **Vigenere**, A simple cipher where each character is encrypted using a corresponding shift from the keyword.
-
+- **Vigenere**, A simple cipher where each character is encrypted using a corresponding shift from the keyword.  
+### Chess  
+- **Chess Engine** — A fully functional chess board supporting move validation, piece movement, and board visualization.  
 ---
 
 ## 🚀 Features
@@ -30,7 +31,9 @@ This crate currently includes support for the following:
 ✅ Fully connected mazes — no isolated areas  
 ✅ Built-in test coverage and examples  
 ✅ Easy to extend with other puzzles in the future   
-✅ Simple ciphers
+✅ Simple ciphers  
+✅ Playable chess board with legal move generation  
+✅ Text-based visualization of chess games  
 
 ---
 
@@ -87,6 +90,30 @@ fn main() {
 }
 ```
 
+## ♟️ Example: Chess Board
+
+```rust
+use puzzle_engine::chess::*;
+
+fn main() {
+    let mut board = Board::new();
+
+    board.display(); // Print the initial board
+
+    let from = Position::new('e', 2).unwrap();
+    let to = Position::new('e', 4).unwrap();
+
+    // Attempt a pawn move: e2 -> e4
+    if board.try_move(from, to).is_ok() {
+        println!("Move successful!");
+    } else {
+        println!("Move failed!");
+    }
+
+    board.display(); // See the updated board
+}
+```
+
 ---
 
 ## 🔮 Roadmap
@@ -95,6 +122,7 @@ Planned puzzle modules:
 
 - [x] Grid Maze (DFS-based)
 - [x] Network Maze
+- [x] Chess Board with move validation
 - [ ] More Ciphers
 - [ ] Nonograms
 - [ ] Word search / Crossword generator

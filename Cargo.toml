@@ -1,6 +1,6 @@
 [package]
 name = "puzzle_engine"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2021"
 authors = ["Andrew Sims andrew,simsd.@gmail.com"]
 description = "An engine for puzzles."
@@ -8,7 +8,7 @@ license = "MIT"
 repository = "https://github.com/Andrewsimsd/puzzle_engine"
 homepage = "https://github.com/Andrewsimsd/puzzle_engine"
 readme = "README.md"
-keywords = ["maze", "cipher", "puzzle", "engine"]
+keywords = ["maze", "cipher", "puzzle", "engine", "chess"]
 categories = ["games"]
 
 [dependencies]
