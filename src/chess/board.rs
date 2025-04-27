@@ -4,10 +4,22 @@ use std::collections::HashMap;
 use std::fmt::Write as FmtWrite;
 
 /// Represents the chess board.
+#[derive(Clone)]
 pub struct Board {
     pub squares: HashMap<Position, Piece>,
     pub turn: Color,
+    pub game_state: GameState,
 }
+
+/// Represents the current state of a chess game.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GameState {
+    Ongoing,
+    Checkmate(Color), // The player who is checkmated
+    Stalemate,
+    Draw, // Optional: add later (repetition, 50-move rule, etc.)
+}
+
 
 impl Board {
     /// Create a new board with the initial chess setup.
@@ -15,9 +27,71 @@ impl Board {
         let mut board = Board {
             squares: HashMap::new(),
             turn: Color::White,
+            game_state: GameState::Ongoing,
         };
         board.reset();
         board
+    }
+
+    /// Initializes the board with a custom set of pieces, turn, and game state.
+    ///
+    /// This method clears any existing pieces and replaces them with the provided ones.
+    ///
+    /// # Arguments
+    ///
+    /// - `pieces` — A [`Vec`] of tuples representing the initial board state.
+    ///   Each tuple must be:
+    ///   - `file`: a `char` ('a' to 'h') indicating the file.
+    ///   - `rank`: a `u8` (1 to 8) indicating the rank.
+    ///   - `color`: a [`Color`] (White or Black).
+    ///   - `kind`: a [`PieceType`] (King, Queen, Rook, Bishop, Knight, Pawn).
+    /// - `turn` — The [`Color`] whose turn it will be after setup.
+    /// - `game_state` — The [`GameState`] to set for the board.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use puzzle_engine::chess::*;
+    ///
+    /// let mut board = Board::new();
+    ///
+    /// board.initialize_custom(
+    ///     vec![
+    ///         ('e', 1, Color::White, PieceType::King),
+    ///         ('e', 8, Color::Black, PieceType::King),
+    ///         ('d', 5, Color::White, PieceType::Queen),
+    ///     ],
+    ///     Color::Black,
+    ///     GameState::Ongoing,
+    /// );
+    ///
+    /// assert_eq!(board.squares.len(), 3);
+    /// assert_eq!(board.turn, Color::Black);
+    /// assert_eq!(board.game_state, GameState::Ongoing);
+    /// assert!(board.squares.contains_key(&Position::new('e', 1).unwrap()));
+    /// ```
+    ///
+    /// # Notes
+    ///
+    /// - This method is useful for unit tests, AI setup positions, or puzzle setups.
+    /// - Passing invalid positions (invalid files/ranks) will panic due to `.unwrap()` on [`Position::new`].
+    /// - Standard gameplay usually uses [`Board::new`] instead.
+    ///
+    pub fn initialize_custom(
+        &mut self,
+        pieces: Vec<(char, u8, Color, PieceType)>,
+        turn: Color,
+        game_state: GameState,
+    ) {
+        self.squares.clear();
+        for (file, rank, color, kind) in pieces {
+            self.squares.insert(
+                Position::new(file, rank).unwrap(),
+                Piece { color, kind },
+            );
+        }
+        self.turn = turn;
+        self.game_state = game_state;
     }
 
     /// Resets the chess board to the standard initial setup.
@@ -37,8 +111,6 @@ impl Board {
     /// # Examples
     ///
     /// ```
-    /// //use puzzle_engine::chess::board::Board;
-    /// //use puzzle_engine::chess::puzzle_engine::Position;
     /// use puzzle_engine::chess::*;
     /// 
     /// let mut board = Board::new();
@@ -159,26 +231,228 @@ impl Board {
     ///
     pub fn try_move(&mut self, from: Position, to: Position) -> Result<(), String> {
         let piece = match self.squares.get(&from).copied() {
-            Some(piece) => piece,
+            Some(p) => p,
             None => return Err("No piece at starting position.".to_string()),
         };
-
+    
         if piece.color != self.turn {
             return Err("Not your turn.".to_string());
         }
-
+    
         let legal_moves = self.get_legal_moves(from);
         if !legal_moves.contains(&to) {
             return Err("Illegal move.".to_string());
         }
-
-        self.squares.remove(&from);
-        self.squares.insert(to, piece);
+    
+        // Clone board and simulate move
+        let mut clone = self.clone();
+        clone.force_move(from, to)?;
+    
+        // If after the move our king is in check, reject
+        if clone.is_in_check(piece.color) {
+            return Err("Move would leave king in check.".to_string());
+        }
+    
+        // Move is valid; perform it
+        self.force_move(from, to)?;
+        // Switch turn
         self.turn = match self.turn {
             Color::White => Color::Black,
             Color::Black => Color::White,
         };
+
+        // After move, check if opponent is checkmated
+        if self.is_checkmate(self.turn) {
+            self.game_state = GameState::Checkmate(self.turn);
+        }
+        else {
+            self.game_state = GameState::Ongoing;
+        }
+
         Ok(())
+    }
+
+    /// Moves a piece from one square to another without legality checks.
+    /// Used internally for simulating moves.
+    fn force_move(&mut self, from: Position, to: Position) -> Result<(), String> {
+        let piece = match self.squares.remove(&from) {
+            Some(p) => p,
+            None => return Err("No piece at starting position.".to_string()),
+        };
+        self.squares.insert(to, piece);
+        Ok(())
+    }
+    
+    /// Determines whether the player of the given color is currently in check.
+    ///
+    /// `is_in_check` checks if the king of the specified [`Color`] is under attack
+    /// by any opposing piece. A player is considered "in check" if the opponent
+    /// could legally capture the player's king on their next move.
+    ///
+    /// # Arguments
+    ///
+    /// - `color` — The [`Color`] of the player to check (`Color::White` or `Color::Black`).
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if the player's king is currently under threat (in check),
+    /// or `false` if the king is safe.
+    ///
+    /// # Behavior
+    ///
+    /// - Locates the king of the specified color on the board.
+    /// - Simulates all legal moves for opponent pieces.
+    /// - If any opponent move could capture the king, returns `true`.
+    /// - If no opponent moves threaten the king, returns `false`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use puzzle_engine::chess::*;
+    ///
+    /// fn main() {
+    ///    let mut board = Board::new();
+    ///
+    ///    // White: f2 to f3
+    ///    board.try_move(Position::new('f', 2).unwrap(), Position::new('f', 3).unwrap()).unwrap();
+    ///
+    ///    // Black: e7 to e5
+    ///    board.try_move(Position::new('e', 7).unwrap(), Position::new('e', 5).unwrap()).unwrap();
+    ///
+    ///    // White: g2 to g4
+    ///    board.try_move(Position::new('g', 2).unwrap(), Position::new('g', 4).unwrap()).unwrap();
+    ///
+    ///    // Black: Queen d8 to h4 (Check!)
+    ///    board.try_move(Position::new('d', 8).unwrap(), Position::new('h', 4).unwrap()).unwrap();
+    ///
+    ///    // White is now in check
+    ///    assert!(board.is_in_check(Color::White));
+    ///
+    ///    println!("White is in check: {}", board.is_in_check(Color::White));
+    ///    }
+    /// ```
+    ///
+    /// # Notes
+    ///
+    /// - `is_in_check` assumes that both players' kings are present on the board.
+    ///   If a king is missing (invalid game state), behavior is undefined.
+    /// - This method does not detect checkmate or stalemate.
+    ///   It only indicates whether the king is immediately threatened.
+    /// - Used internally by [`Board::try_move`] to ensure moves do not leave a player in check.
+    ///
+    /// # See Also
+    ///
+    /// - [`Board::is_checkmate`] — Determines whether a player is currently checkmated.
+    /// - [`Board::try_move`] — Attempts a move while enforcing that the king cannot move into or remain in check.
+    ///
+    pub fn is_in_check(&self, color: Color) -> bool {
+        let king_pos = match self.squares.iter()
+            .find(|(_, piece)| piece.color == color && piece.kind == PieceType::King)
+        {
+            Some((pos, _)) => pos,
+            None => return false, // No king found; technically invalid game state
+        };
+
+        for (pos, piece) in &self.squares {
+            if piece.color != color {
+                let moves = self.get_legal_moves(*pos);
+                if moves.contains(king_pos) {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
+    /// Determines whether the player of the given color is currently checkmated.
+    ///
+    /// `is_checkmate` checks if the king of the specified [`Color`] is under attack (in check),
+    /// and whether there are no legal moves available to escape the threat.
+    ///
+    /// A player is considered checkmated if:
+    /// - Their king is currently in check.
+    /// - No sequence of legal moves (for any of their pieces) would remove the check.
+    ///
+    /// If the player is not in check, or if they can make at least one legal move to avoid check,
+    /// this method returns `false`.
+    ///
+    /// # Arguments
+    ///
+    /// - `color` — The [`Color`] of the player to check for checkmate (`Color::White` or `Color::Black`).
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if the player is checkmated, otherwise `false`.
+    ///
+    /// # Behavior
+    ///
+    /// - Attempts all legal moves for all of the player's pieces.
+    /// - Simulates each move and checks whether it would remove the king from check.
+    /// - If no legal move exists that avoids check, the player is considered checkmated.
+    /// - Does not detect stalemate (where a player has no legal moves but is not in check).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use puzzle_engine::chess::*;
+    ///
+    /// fn main() {
+    ///     let mut board = Board::new();
+    ///
+    ///     // Simulate Fool's Mate: fastest checkmate in chess
+    ///
+    ///     // White: f2 to f3
+    ///     board.try_move(Position::new('f', 2).unwrap(), Position::new('f', 3).unwrap()).unwrap();
+    ///     // Black: e7 to e5
+    ///     board.try_move(Position::new('e', 7).unwrap(), Position::new('e', 5).unwrap()).unwrap();
+    ///     // White: g2 to g4
+    ///     board.try_move(Position::new('g', 2).unwrap(), Position::new('g', 4).unwrap()).unwrap();
+    ///     // Black: Queen to h4 (checkmate)
+    ///     board.try_move(Position::new('d', 8).unwrap(), Position::new('h', 4).unwrap()).unwrap();
+    ///
+    ///     assert!(board.is_checkmate(Color::White));
+    ///
+    ///     println!("White is checkmated!");
+    /// }
+    /// ```
+    ///
+    /// # Notes
+    ///
+    /// - `is_checkmate` assumes normal chess rules are followed.  
+    ///   If illegal positions are manually created (e.g., missing kings), behavior is undefined.
+    /// - This method does not consider stalemate or draw conditions.
+    /// - It is recommended to call [`Board::is_in_check`] before calling `is_checkmate` if you need to distinguish between check and checkmate.
+    ///
+    /// # See Also
+    ///
+    /// - [`Board::is_in_check`] — Determines whether a player's king is currently under attack.
+    /// - [`Board::try_move`] — Attempts a move while enforcing move legality, including avoiding self-checks.
+    ///
+    /// # Future Extensions
+    ///
+    /// - Full draw/stalemate detection may be implemented in future versions of the engine.
+    ///
+    pub fn is_checkmate(&self, color: Color) -> bool {
+        if !self.is_in_check(color) {
+            return false;
+        }
+    
+        for (from, piece) in &self.squares {
+            if piece.color != color {
+                continue;
+            }
+    
+            let legal_moves = self.get_legal_moves(*from);
+            for to in legal_moves {
+                let mut cloned = self.clone();
+                if cloned.force_move(*from, to).is_ok() && !cloned.is_in_check(color) {
+                    return false;
+                }
+            }
+        }
+    
+        true
     }
 
     /// Returns all legal moves for the piece at a given position, based on standard chess rules.
@@ -256,38 +530,32 @@ impl Board {
 
         match piece.kind {
             PieceType::Pawn => {
-                let direction: i8 = match piece.color {
-                    Color::White => 1,
-                    Color::Black => -1,
+                let direction = match piece.color {
+                    Color::White => 1, // White pawns move UP
+                    Color::Black => -1, // Black pawns move DOWN
                 };
-
-                let start_rank = match piece.color {
-                    Color::White => 2,
-                    Color::Black => 7,
-                };
-
-                // 1-square forward
-                let next_rank = (from.rank as i8 + direction) as u8;
-                if let Some(pos) = Position::new(from.file, next_rank) {
-                    if !self.squares.contains_key(&pos) {
-                        moves.push(pos);
-
-                        // 2-square move if at starting position
-                        if from.rank == start_rank {
-                            let two_ahead = (from.rank as i8 + 2 * direction) as u8;
-                            if let Some(pos2) = Position::new(from.file, two_ahead) {
-                                if !self.squares.contains_key(&pos2) {
-                                    moves.push(pos2);
+            
+                // Forward move
+                if let Some(forward_pos) = Position::new(from.file, (from.rank as i8 + direction) as u8) {
+                    if self.squares.get(&forward_pos).is_none() {
+                        moves.push(forward_pos);
+            
+                        // First move double step
+                        if (piece.color == Color::White && from.rank == 2) || (piece.color == Color::Black && from.rank == 7) {
+                            if let Some(double_forward) = Position::new(from.file, (from.rank as i8 + 2 * direction) as u8) {
+                                if self.squares.get(&double_forward).is_none() {
+                                    moves.push(double_forward);
                                 }
                             }
                         }
                     }
                 }
-
-                // Captures (diagonal)
-                for df in [-1, 1] {
-                    let next_file = (from.file as u8 as i8 + df) as u8 as char;
-                    if let Some(capture_pos) = Position::new(next_file, next_rank) {
+            
+                // Captures
+                for &file_offset in &[-1, 1] {
+                    let capture_file = ((from.file as u8) as i8 + file_offset) as u8 as char;
+                    let capture_rank = (from.rank as i8 + direction) as u8;
+                    if let Some(capture_pos) = Position::new(capture_file, capture_rank) {
                         if let Some(target_piece) = self.squares.get(&capture_pos) {
                             if target_piece.color != piece.color {
                                 moves.push(capture_pos);
@@ -524,6 +792,7 @@ impl Board {
         writeln!(w, "   a  b  c  d  e  f  g  h")?;
         Ok(())
     }
+
 }
 
 #[cfg(test)]
@@ -558,20 +827,13 @@ mod tests {
         );
     }
 
-    fn setup_board_with_piece(file: char, rank: u8, piece: Piece) -> Board {
-        let mut board = Board {
-            squares: HashMap::new(),
-            turn: Color::White,
-        };
-        board.squares.insert(Position::new(file, rank).unwrap(), piece);
-        board
-    }
 
     #[test]
     fn test_moves_in_directions_empty_board() {
         let board = Board {
             squares: HashMap::new(),
             turn: Color::White,
+            game_state: GameState::Ongoing,
         };
         let from = Position::new('d', 4).unwrap();
         let directions = &[(1, 0)]; // East
@@ -591,6 +853,7 @@ mod tests {
         let mut board = Board {
             squares: HashMap::new(),
             turn: Color::White,
+            game_state: GameState::Ongoing,
         };
         let from = Position::new('d', 4).unwrap();
         board.squares.insert(Position::new('f', 4).unwrap(), Piece { color: Color::White, kind: PieceType::Pawn });
@@ -612,6 +875,7 @@ mod tests {
         let mut board = Board {
             squares: HashMap::new(),
             turn: Color::White,
+            game_state: GameState::Ongoing,
         };
         let from = Position::new('d', 4).unwrap();
         board.squares.insert(Position::new('f', 4).unwrap(), Piece { color: Color::Black, kind: PieceType::Pawn });
@@ -633,6 +897,7 @@ mod tests {
         let board = Board {
             squares: HashMap::new(),
             turn: Color::White,
+            game_state: GameState::Ongoing,
         };
         let from = Position::new('d', 4).unwrap();
         let directions = &[(1, 1)]; // Northeast
@@ -652,6 +917,7 @@ mod tests {
         let board = Board {
             squares: HashMap::new(),
             turn: Color::White,
+            game_state: GameState::Ongoing,
         };
         let from = Position::new('h', 8).unwrap();
         let directions = &[(1, 0), (0, 1), (1, 1)]; // All directions that should immediately go off board
@@ -666,6 +932,7 @@ mod tests {
         let board = Board {
             squares: HashMap::new(),
             turn: Color::White,
+            game_state: GameState::Ongoing,
         };
         let from = Position::new('d', 4).unwrap();
         let directions = &[(1, 0), (0, 1)]; // East and North
@@ -769,6 +1036,378 @@ mod tests {
         // Files printed
         for file in 'a'..='h' {
             assert!(output.contains(file), "File {} missing", file);
+        }
+    }
+
+    #[test]
+    fn test_not_in_check_starting_position() {
+        let board = Board::new();
+        assert!(!board.is_in_check(Color::White), "White should not be in check at start.");
+        assert!(!board.is_in_check(Color::Black), "Black should not be in check at start.");
+    }
+
+    #[test]
+    fn test_in_check_simple_rook_attack() {
+        let pieces = vec![
+            ('e', 1, Color::White, PieceType::King),
+            ('e', 8, Color::Black, PieceType::Rook),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+
+        assert!(board.is_in_check(Color::White), "White king should be in check from black rook.");
+    }
+
+    #[test]
+    fn test_not_in_check_rook_blocked() {
+        let pieces = vec![
+            ('e', 1, Color::White, PieceType::King),
+            ('e', 4, Color::White, PieceType::Pawn), // Blocking pawn
+            ('e', 8, Color::Black, PieceType::Rook),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        assert!(!board.is_in_check(Color::White), "White king should not be in check (rook is blocked).");
+    }
+
+    #[test]
+    fn test_in_check_diagonal_bishop_attack() {
+        let pieces = vec![
+            ('c', 1, Color::White, PieceType::King),
+            ('f', 4, Color::Black, PieceType::Bishop),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        assert!(board.is_in_check(Color::White), "White king should be in check from bishop on diagonal.");
+    }
+
+    #[test]
+    fn test_in_check_knight_attack() {
+        let pieces = vec![
+            ('e', 1, Color::White, PieceType::King),
+            ('d', 3, Color::Black, PieceType::Knight),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        assert!(board.is_in_check(Color::White), "White king should be in check from knight.");
+    }
+
+    #[test]
+    fn test_in_check_queen_attack() {
+        let pieces = vec![
+            ('e', 1, Color::White, PieceType::King),
+            ('e', 5, Color::Black, PieceType::Queen),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        assert!(board.is_in_check(Color::White), "White king should be in check from queen along file.");
+    }
+
+    #[test]
+    fn test_in_check_multiple_threats() {
+        let pieces = vec![
+            ('e', 1, Color::White, PieceType::King),
+            ('e', 8, Color::Black, PieceType::Rook),
+            ('a', 1, Color::Black, PieceType::Rook),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        assert!(board.is_in_check(Color::White), "White king should be in check from two directions.");
+    }
+
+    #[test]
+    fn test_not_in_check_empty_board() {
+        let board = Board {
+            squares: HashMap::new(),
+            turn: Color::White,
+            game_state: GameState::Ongoing,
+        };
+        assert!(!board.is_in_check(Color::White), "Empty board should not cause check (no kings).");
+        assert!(!board.is_in_check(Color::Black), "Empty board should not cause check (no kings).");
+    }
+
+    #[test]
+    fn test_in_check_pawn_attack() {
+        let pieces = vec![
+            ('e', 4, Color::White, PieceType::King),
+            ('d', 5, Color::Black, PieceType::Pawn), // Pawn threatens e4
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        assert!(board.is_in_check(Color::White), "White king should be in check from black pawn.");
+    }
+
+    #[test]
+    fn test_not_in_check_wrong_color_pawn() {
+        let pieces = vec![
+            ('e', 4, Color::Black, PieceType::King),
+            ('d', 5, Color::White, PieceType::Pawn), // White pawn can't threaten Black king backwards
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        assert!(!board.is_in_check(Color::Black), "White pawn should not check black king from above.");
+    }
+
+    #[test]
+    fn test_not_checkmated_at_start() {
+        let board = Board::new();
+        assert!(!board.is_checkmate(Color::White), "White should not be checkmated at starting position.");
+        assert!(!board.is_checkmate(Color::Black), "Black should not be checkmated at starting position.");
+    }
+
+    #[test]
+    fn test_simple_check_but_not_checkmate() {
+        let pieces = vec![
+            ('e', 1, Color::White, PieceType::King),
+            ('e', 8, Color::Black, PieceType::Rook), // Black rook attacking, but king can move
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        assert!(board.is_in_check(Color::White), "White king should be in check.");
+        assert!(!board.is_checkmate(Color::White), "White king should not be checkmated (can escape).");
+    }
+
+    #[test]
+    fn test_simple_checkmate_by_rook_and_king_blocked() {
+        let pieces = vec![
+            ('a', 1, Color::White, PieceType::King),
+            ('a', 2, Color::Black, PieceType::Rook),
+            ('b', 2, Color::Black, PieceType::Rook),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        assert!(board.is_in_check(Color::White), "White king should be in check.");
+        assert!(board.is_checkmate(Color::White), "White king should be checkmated (blocked on all sides).");
+    }
+
+    #[test]
+    fn test_simple_check_by_rook_and_king_can_take_to_escape() {
+        let pieces = vec![
+            ('a', 1, Color::White, PieceType::King),
+            ('a', 2, Color::Black, PieceType::Rook),
+            ('b', 3, Color::Black, PieceType::Rook),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        assert!(board.is_in_check(Color::White), "White king should be in check.");
+        assert!(!board.is_checkmate(Color::White), "White king should be checkmated (blocked on all sides).");
+    }
+
+    #[test]
+    fn test_checkmate_by_queen() {
+        let pieces = vec![
+            ('a', 1, Color::White, PieceType::King),
+            ('h', 1, Color::Black, PieceType::Queen),
+            ('b', 3, Color::Black, PieceType::King),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        assert!(board.is_in_check(Color::White), "White king should be in check from queen.");
+        assert!(board.is_checkmate(Color::White), "White king should be checkmated (no escape).");
+    }
+
+    #[test]
+    fn test_not_checkmate_king_can_escape() {
+        let pieces = vec![
+            ('a', 1, Color::White, PieceType::King),
+            ('a', 3, Color::Black, PieceType::Queen),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        assert!(board.is_in_check(Color::White), "White king should be in check.");
+        assert!(!board.is_checkmate(Color::White), "White king should be able to escape (move).");
+    }
+
+    #[test]
+    fn test_checkmate_fools_mate() {
+        let mut board = Board::new();
+
+        // Simulate Fool's Mate
+        board.try_move(Position::new('f', 2).unwrap(), Position::new('f', 3).unwrap()).unwrap();
+        board.try_move(Position::new('e', 7).unwrap(), Position::new('e', 5).unwrap()).unwrap();
+        board.try_move(Position::new('g', 2).unwrap(), Position::new('g', 4).unwrap()).unwrap();
+        board.try_move(Position::new('d', 8).unwrap(), Position::new('h', 4).unwrap()).unwrap();
+
+        assert!(board.is_in_check(Color::White), "White should be in check.");
+        assert!(board.is_checkmate(Color::White), "White should be checkmated in Fool's Mate.");
+    }
+
+    #[test]
+    fn test_not_checkmate_not_in_check() {
+        let pieces = vec![
+            ('e', 1, Color::White, PieceType::King),
+            ('a', 8, Color::Black, PieceType::Rook),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        assert!(!board.is_in_check(Color::White), "White king should not be in check.");
+        assert!(!board.is_checkmate(Color::White), "White king should not be checkmated if not in check.");
+    }
+
+    #[test]
+    fn test_checkmate_edge_case_empty_board() {
+        let board = Board {
+            squares: HashMap::new(),
+            turn: Color::White,
+            game_state: GameState::Ongoing,
+        };
+
+        // No kings on the board technically — behavior undefined, but should NOT panic
+        assert!(!board.is_checkmate(Color::White), "Empty board should not panic or cause checkmate.");
+        assert!(!board.is_checkmate(Color::Black), "Empty board should not panic or cause checkmate.");
+    }
+
+    #[test]
+    fn test_checkmate_smothered_mate() {
+        let pieces = vec![
+            ('h', 8, Color::Black, PieceType::King),
+            ('h', 7, Color::Black, PieceType::Pawn),
+            ('g', 7, Color::Black, PieceType::King),
+            ('g', 8, Color::Black, PieceType::Rook),
+            ('f', 7, Color::White, PieceType::Knight),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        // No kings on the board technically — behavior undefined, but should NOT panic
+        assert!(!board.is_checkmate(Color::White), "Empty board should not panic or cause checkmate.");
+        assert!(!board.is_checkmate(Color::Black), "Empty board should not panic or cause checkmate.");
+    }
+
+    #[test]
+    fn test_try_move_successful_normal_move() {
+        let mut board = Board::new();
+        let result = board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 4).unwrap());
+        assert!(result.is_ok(), "Expected pawn move from e2 to e4 to succeed.");
+        assert_eq!(board.turn, Color::Black, "Turn should switch to Black after move.");
+        assert_eq!(board.game_state, GameState::Ongoing, "Game should continue after normal move.");
+    }
+
+    #[test]
+    fn test_try_move_no_piece_at_start() {
+        let mut board = Board::new();
+        let result = board.try_move(Position::new('e', 3).unwrap(), Position::new('e', 4).unwrap());
+        assert!(result.is_err(), "Expected error when no piece at starting position.");
+    }
+
+    #[test]
+    fn test_try_move_illegal_move_attempt() {
+        let mut board = Board::new();
+        let result = board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 5).unwrap()); // Illegal: pawn can't jump to e5 directly
+        assert!(result.is_err(), "Expected illegal move error for pawn jumping 3 spaces.");
+    }
+
+    #[test]
+    fn test_try_move_not_players_turn() {
+        let mut board = Board::new();
+        board.turn = Color::Black;
+        let result = board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 4).unwrap());
+        assert!(result.is_err(), "Expected error when moving out of turn.");
+    }
+
+    #[test]
+    fn test_try_move_into_check_disallowed() {
+        let pieces = vec![
+            ('a', 1, Color::White, PieceType::King),
+            ('b', 2, Color::Black, PieceType::Rook),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        let result = board.try_move(Position::new('a', 1).unwrap(), Position::new('b', 1).unwrap());
+        assert!(result.is_err(), "Expected error when moving into check.");
+    }
+
+    #[test]
+    fn test_try_move_checkmate_after_move() {
+        let pieces = vec![
+            ('a', 1, Color::White, PieceType::King),
+            ('d', 8, Color::Black, PieceType::Queen),
+            ('b', 3, Color::Black, PieceType::King),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        board.turn = Color::Black;
+        let result = board.try_move(Position::new('d', 8).unwrap(), Position::new('d', 1).unwrap());
+        assert!(result.is_ok(), "Expected queen move to e5 to succeed.");
+        
+        match board.game_state {
+            GameState::Checkmate(Color::White) => {},
+            other => panic!("Expected White to be checkmated after move, found {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_try_move_no_checkmate_if_king_can_escape() {
+        let pieces = vec![
+            ('e', 1, Color::White, PieceType::King),
+            ('f', 3, Color::Black, PieceType::Queen),
+        ];
+        let turn = Color::Black;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        let result = board.try_move(Position::new('f', 3).unwrap(), Position::new('f', 2).unwrap());
+        assert!(result.is_ok(), "Expected move to succeed.");
+        assert_eq!(board.game_state, GameState::Ongoing, "Game should remain ongoing (king can escape).");
+    }
+
+    #[test]
+    fn test_try_move_stalemate_placeholder() {
+        let board = Board {
+            squares: HashMap::new(),
+            turn: Color::White,
+            game_state: GameState::Ongoing,
+        };
+
+        assert_eq!(board.game_state, GameState::Ongoing, "Empty board should be ongoing (no stalemate yet).");
+    }
+
+    #[test]
+    fn test_try_move_fools_mate_checkmate() {
+        let mut board = Board::new();
+
+        // Fool's Mate (quickest checkmate in chess)
+        board.try_move(Position::new('f', 2).unwrap(), Position::new('f', 3).unwrap()).unwrap();
+        board.try_move(Position::new('e', 7).unwrap(), Position::new('e', 5).unwrap()).unwrap();
+        board.try_move(Position::new('g', 2).unwrap(), Position::new('g', 4).unwrap()).unwrap();
+        board.try_move(Position::new('d', 8).unwrap(), Position::new('h', 4).unwrap()).unwrap();
+
+        match board.game_state {
+            GameState::Checkmate(Color::White) => {},
+            other => panic!("Expected White to be checkmated in Fool's Mate, found {:?}", other),
         }
     }
 }
