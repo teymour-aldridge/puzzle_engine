@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt::Write as FmtWrite;
 
 /// Represents the chess board.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Board {
     pub squares: HashMap<Position, Piece>,
     pub turn: Color,
@@ -86,7 +86,7 @@ impl Board {
         self.squares.clear();
         for (file, rank, color, kind) in pieces {
             self.squares.insert(
-                Position::new(file, rank).unwrap(),
+                Position::new(file, rank).expect("Invalid position construction"),
                 Piece { color, kind },
             );
         }
@@ -229,7 +229,7 @@ impl Board {
     /// - This method does not verify check or checkmate conditions; it only enforces basic move legality.
     /// - The method assumes that [`Position::new`] has already validated that the provided positions are on the board.
     ///
-    pub fn try_move(&mut self, from: Position, to: Position) -> Result<(), String> {
+    pub fn try_move(&mut self, from: Position, to: Position, promotion: Option<PieceType>) -> Result<(), String> {
         let piece = match self.squares.get(&from).copied() {
             Some(p) => p,
             None => return Err("No piece at starting position.".to_string()),
@@ -255,11 +255,26 @@ impl Board {
     
         // Move is valid; perform it
         self.force_move(from, to)?;
+        // Check if promotion is needed
+        if let Some(mut moved_piece) = self.squares.get_mut(&to) {
+            if moved_piece.kind == PieceType::Pawn {
+                let promote = match moved_piece.color {
+                    Color::White if to.rank == 8 => true,
+                    Color::Black if to.rank == 1 => true,
+                    _ => false,
+                };
+                if promote {
+                    let new_piece = match promotion {
+                        Some(PieceType::Queen | PieceType::Rook | PieceType::Bishop | PieceType::Knight) => promotion.unwrap(),
+                        None => PieceType::Queen, // Default to queen if not specified
+                        _ => return Err("Invalid promotion piece.".to_string()),
+                    };
+                    moved_piece.kind = new_piece;
+                }
+            }
+        }
         // Switch turn
-        self.turn = match self.turn {
-            Color::White => Color::Black,
-            Color::Black => Color::White,
-        };
+        self.turn = Self::opponent_color(self.turn);
 
         // After move, check if opponent is checkmated
         if self.is_checkmate(self.turn) {
@@ -270,6 +285,14 @@ impl Board {
         }
 
         Ok(())
+    }
+
+    /// Returns the color opposite of that which is passed in.
+    fn opponent_color(color: Color) -> Color {
+        match color {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        }
     }
 
     /// Moves a piece from one square to another without legality checks.
@@ -766,7 +789,7 @@ impl Board {
         for rank in (1..=8).rev() {
             write!(w, "{} ", rank)?;
             for file in 'a'..='h' {
-                let pos = Position::new(file, rank).unwrap();
+                let pos = Position::new(file, rank).expect("Invalid position construction");
                 if let Some(piece) = self.squares.get(&pos) {
                     let symbol = match (piece.color, piece.kind) {
                         (Color::White, PieceType::Pawn) => '♙',
@@ -800,7 +823,7 @@ mod tests {
     use super::*;
 
     fn verify_piece_at(board: &Board, file: char, rank: u8, expected_color: Color, expected_type: PieceType) {
-        let pos = Position::new(file, rank).unwrap();
+        let pos = Position::new(file, rank).expect("Invalid position construction");
         let piece = board.squares.get(&pos)
             .unwrap_or_else(|| panic!("Expected piece at {}{}", file, rank));
     
@@ -819,7 +842,7 @@ mod tests {
 
     /// Verifies that there is NO piece at a given position.
     fn verify_empty_at(board: &Board, file: char, rank: u8) {
-        let pos = Position::new(file, rank).unwrap();
+        let pos = Position::new(file, rank).expect("Invalid position construction");
         assert!(
             !board.squares.contains_key(&pos),
             "Expected no piece at {}{}, but found one.",
@@ -990,10 +1013,10 @@ mod tests {
         let mut board = Board::new();
 
         // White pawn e2 to e4
-        assert!(board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 4).unwrap()).is_ok());
+        assert!(board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 4).unwrap(), None).is_ok());
 
         // Black pawn d7 to d5
-        assert!(board.try_move(Position::new('d', 7).unwrap(), Position::new('d', 5).unwrap()).is_ok());
+        assert!(board.try_move(Position::new('d', 7).unwrap(), Position::new('d', 5).unwrap(), None).is_ok());
 
         // Now check positions
         verify_piece_at(&board, 'e', 4, Color::White, PieceType::Pawn);
@@ -1249,10 +1272,10 @@ mod tests {
         let mut board = Board::new();
 
         // Simulate Fool's Mate
-        board.try_move(Position::new('f', 2).unwrap(), Position::new('f', 3).unwrap()).unwrap();
-        board.try_move(Position::new('e', 7).unwrap(), Position::new('e', 5).unwrap()).unwrap();
-        board.try_move(Position::new('g', 2).unwrap(), Position::new('g', 4).unwrap()).unwrap();
-        board.try_move(Position::new('d', 8).unwrap(), Position::new('h', 4).unwrap()).unwrap();
+        board.try_move(Position::new('f', 2).unwrap(), Position::new('f', 3).unwrap(), None).unwrap();
+        board.try_move(Position::new('e', 7).unwrap(), Position::new('e', 5).unwrap(), None).unwrap();
+        board.try_move(Position::new('g', 2).unwrap(), Position::new('g', 4).unwrap(), None).unwrap();
+        board.try_move(Position::new('d', 8).unwrap(), Position::new('h', 4).unwrap(), None).unwrap();
 
         assert!(board.is_in_check(Color::White), "White should be in check.");
         assert!(board.is_checkmate(Color::White), "White should be checkmated in Fool's Mate.");
@@ -1306,7 +1329,7 @@ mod tests {
     #[test]
     fn test_try_move_successful_normal_move() {
         let mut board = Board::new();
-        let result = board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 4).unwrap());
+        let result = board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 4).unwrap(), None);
         assert!(result.is_ok(), "Expected pawn move from e2 to e4 to succeed.");
         assert_eq!(board.turn, Color::Black, "Turn should switch to Black after move.");
         assert_eq!(board.game_state, GameState::Ongoing, "Game should continue after normal move.");
@@ -1315,14 +1338,14 @@ mod tests {
     #[test]
     fn test_try_move_no_piece_at_start() {
         let mut board = Board::new();
-        let result = board.try_move(Position::new('e', 3).unwrap(), Position::new('e', 4).unwrap());
+        let result = board.try_move(Position::new('e', 3).unwrap(), Position::new('e', 4).unwrap(), None);
         assert!(result.is_err(), "Expected error when no piece at starting position.");
     }
 
     #[test]
     fn test_try_move_illegal_move_attempt() {
         let mut board = Board::new();
-        let result = board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 5).unwrap()); // Illegal: pawn can't jump to e5 directly
+        let result = board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 5).unwrap(), None); // Illegal: pawn can't jump to e5 directly
         assert!(result.is_err(), "Expected illegal move error for pawn jumping 3 spaces.");
     }
 
@@ -1330,7 +1353,7 @@ mod tests {
     fn test_try_move_not_players_turn() {
         let mut board = Board::new();
         board.turn = Color::Black;
-        let result = board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 4).unwrap());
+        let result = board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 4).unwrap(), None);
         assert!(result.is_err(), "Expected error when moving out of turn.");
     }
 
@@ -1344,7 +1367,7 @@ mod tests {
         let game_state = GameState::Ongoing;
         let mut board = Board::new();
         board.initialize_custom(pieces, turn, game_state);
-        let result = board.try_move(Position::new('a', 1).unwrap(), Position::new('b', 1).unwrap());
+        let result = board.try_move(Position::new('a', 1).unwrap(), Position::new('b', 1).unwrap(), None);
         assert!(result.is_err(), "Expected error when moving into check.");
     }
 
@@ -1360,7 +1383,7 @@ mod tests {
         let mut board = Board::new();
         board.initialize_custom(pieces, turn, game_state);
         board.turn = Color::Black;
-        let result = board.try_move(Position::new('d', 8).unwrap(), Position::new('d', 1).unwrap());
+        let result = board.try_move(Position::new('d', 8).unwrap(), Position::new('d', 1).unwrap(), None);
         assert!(result.is_ok(), "Expected queen move to e5 to succeed.");
         
         match board.game_state {
@@ -1379,7 +1402,7 @@ mod tests {
         let game_state = GameState::Ongoing;
         let mut board = Board::new();
         board.initialize_custom(pieces, turn, game_state);
-        let result = board.try_move(Position::new('f', 3).unwrap(), Position::new('f', 2).unwrap());
+        let result = board.try_move(Position::new('f', 3).unwrap(), Position::new('f', 2).unwrap(), None);
         assert!(result.is_ok(), "Expected move to succeed.");
         assert_eq!(board.game_state, GameState::Ongoing, "Game should remain ongoing (king can escape).");
     }
@@ -1400,15 +1423,56 @@ mod tests {
         let mut board = Board::new();
 
         // Fool's Mate (quickest checkmate in chess)
-        board.try_move(Position::new('f', 2).unwrap(), Position::new('f', 3).unwrap()).unwrap();
-        board.try_move(Position::new('e', 7).unwrap(), Position::new('e', 5).unwrap()).unwrap();
-        board.try_move(Position::new('g', 2).unwrap(), Position::new('g', 4).unwrap()).unwrap();
-        board.try_move(Position::new('d', 8).unwrap(), Position::new('h', 4).unwrap()).unwrap();
+        board.try_move(Position::new('f', 2).unwrap(), Position::new('f', 3).unwrap(), None).unwrap();
+        board.try_move(Position::new('e', 7).unwrap(), Position::new('e', 5).unwrap(), None).unwrap();
+        board.try_move(Position::new('g', 2).unwrap(), Position::new('g', 4).unwrap(), None).unwrap();
+        board.try_move(Position::new('d', 8).unwrap(), Position::new('h', 4).unwrap(), None).unwrap();
 
         match board.game_state {
             GameState::Checkmate(Color::White) => {},
             other => panic!("Expected White to be checkmated in Fool's Mate, found {:?}", other),
         }
     }
+    #[test]
+    fn test_pawn_promotion_to_queen() {
+        let mut board = Board::new();
+        board.squares.clear();
+
+        // White pawn at 7th rank
+        board.squares.insert(Position::new('a', 7).unwrap(), Piece { color: Color::White, kind: PieceType::Pawn });
+        board.turn = Color::White;
+
+        // Move to 8th rank with promotion
+        let from = Position::new('a', 7).unwrap();
+        let to = Position::new('a', 8).unwrap();
+        board.try_move(from, to, Some(PieceType::Queen)).unwrap();
+
+        let piece = board.squares.get(&to).unwrap();
+        assert_eq!(piece.kind, PieceType::Queen);
+        assert_eq!(piece.color, Color::White);
+    }
+
+    #[test]
+    fn test_pawn_promotion_checkmate() {
+        let pieces = vec![
+            ('h', 8, Color::Black, PieceType::Rook),
+            ('h', 7, Color::Black, PieceType::King),
+            ('g', 7, Color::Black, PieceType::Pawn),
+            ('g', 8, Color::Black, PieceType::Bishop),
+            ('g', 8, Color::Black, PieceType::Bishop),
+            ('h', 6, Color::Black, PieceType::Rook),
+            ('f', 7, Color::White, PieceType::Pawn),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+        let from = {Position { file: ('f'), rank: (7) }};
+        let to = {Position { file: ('f'), rank: (8) }};
+        board.try_move(from, to, Some(PieceType::Knight)).unwrap();
+
+        assert_eq!(GameState::Checkmate(Color::Black), board.game_state);
+    }
+
 }
 
