@@ -32,7 +32,7 @@ This crate currently includes support for the following:
 ✅ Built-in test coverage and examples  
 ✅ Easy to extend with other puzzles in the future   
 ✅ Simple ciphers  
-✅ Playable chess board with all rules included (except for stalemate and draw due to repeated moves) 
+✅ Playable chess board with all rules included (except for stalemate and draw due to repeated moves)  
 ✅ Text-based visualization of chess games  
 
 ---
