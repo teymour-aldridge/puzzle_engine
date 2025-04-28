@@ -128,7 +128,7 @@ impl Board {
     /// let mut board = Board::new();
     ///
     /// // Play a move: e2 to e4
-    /// board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 4).unwrap()).unwrap();
+    /// board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 4).unwrap(), None).unwrap();
     ///
     /// // Reset the board back to the initial state
     /// board.reset();
@@ -234,10 +234,10 @@ impl Board {
     /// let to = Position::new('e', 4).unwrap();
     ///
     /// // Attempt a valid pawn move: e2 -> e4
-    /// assert!(board.try_move(from, to).is_ok());
+    /// assert!(board.try_move(from, to, None).is_ok());
     ///
     /// // Attempt an illegal move: e4 -> e5 (not White's turn)
-    /// let illegal_move = board.try_move(Position::new('e', 4).unwrap(), Position::new('e', 5).unwrap());
+    /// let illegal_move = board.try_move(Position::new('e', 4).unwrap(), Position::new('e', 5).unwrap(), None);
     /// assert!(illegal_move.is_err());
     /// ```
     ///
@@ -291,7 +291,7 @@ impl Board {
         // Move is valid; perform it
         self.force_move(from, to)?;
         // Check if promotion is needed
-        if let Some(mut moved_piece) = self.squares.get_mut(&to) {
+        if let Some(moved_piece) = self.squares.get_mut(&to) {
             if moved_piece.kind == PieceType::Pawn {
                 let promote = match moved_piece.color {
                     Color::White if to.rank == 8 => true,
@@ -498,16 +498,16 @@ impl Board {
     ///    let mut board = Board::new();
     ///
     ///    // White: f2 to f3
-    ///    board.try_move(Position::new('f', 2).unwrap(), Position::new('f', 3).unwrap()).unwrap();
+    ///    board.try_move(Position::new('f', 2).unwrap(), Position::new('f', 3).unwrap(), None).unwrap();
     ///
     ///    // Black: e7 to e5
-    ///    board.try_move(Position::new('e', 7).unwrap(), Position::new('e', 5).unwrap()).unwrap();
+    ///    board.try_move(Position::new('e', 7).unwrap(), Position::new('e', 5).unwrap(), None).unwrap();
     ///
     ///    // White: g2 to g4
-    ///    board.try_move(Position::new('g', 2).unwrap(), Position::new('g', 4).unwrap()).unwrap();
+    ///    board.try_move(Position::new('g', 2).unwrap(), Position::new('g', 4).unwrap(), None).unwrap();
     ///
     ///    // Black: Queen d8 to h4 (Check!)
-    ///    board.try_move(Position::new('d', 8).unwrap(), Position::new('h', 4).unwrap()).unwrap();
+    ///    board.try_move(Position::new('d', 8).unwrap(), Position::new('h', 4).unwrap(), None).unwrap();
     ///
     ///    // White is now in check
     ///    assert!(board.is_in_check(Color::White));
@@ -587,13 +587,13 @@ impl Board {
     ///     // Simulate Fool's Mate: fastest checkmate in chess
     ///
     ///     // White: f2 to f3
-    ///     board.try_move(Position::new('f', 2).unwrap(), Position::new('f', 3).unwrap()).unwrap();
+    ///     board.try_move(Position::new('f', 2).unwrap(), Position::new('f', 3).unwrap(), None).unwrap();
     ///     // Black: e7 to e5
-    ///     board.try_move(Position::new('e', 7).unwrap(), Position::new('e', 5).unwrap()).unwrap();
+    ///     board.try_move(Position::new('e', 7).unwrap(), Position::new('e', 5).unwrap(), None).unwrap();
     ///     // White: g2 to g4
-    ///     board.try_move(Position::new('g', 2).unwrap(), Position::new('g', 4).unwrap()).unwrap();
+    ///     board.try_move(Position::new('g', 2).unwrap(), Position::new('g', 4).unwrap(), None).unwrap();
     ///     // Black: Queen to h4 (checkmate)
-    ///     board.try_move(Position::new('d', 8).unwrap(), Position::new('h', 4).unwrap()).unwrap();
+    ///     board.try_move(Position::new('d', 8).unwrap(), Position::new('h', 4).unwrap(), None).unwrap();
     ///
     ///     assert!(board.is_checkmate(Color::White));
     ///
@@ -737,19 +737,26 @@ impl Board {
             
                 // Captures
                 for &file_offset in &[-1, 1] {
-                    let capture_file = ((from.file as u8) as i8 + file_offset) as u8 as char;
-                    let capture_rank = (from.rank as i8 + direction) as u8;
-                    if let Some(capture_pos) = Position::new(capture_file, capture_rank) {
-                        if let Some(target_piece) = self.squares.get(&capture_pos) {
-                            if target_piece.color != piece.color {
-                                moves.push(capture_pos);
+                    let next_file_i8 = (from.file as u8) as i8 + file_offset;
+                    let next_rank_i8 = from.rank as i8 + direction;
+
+                    if (b'a' as i8..=b'h' as i8).contains(&next_file_i8) && (1..=8).contains(&next_rank_i8) {
+                        let capture_file = next_file_i8 as u8 as char;
+                        let capture_rank = next_rank_i8 as u8;
+
+                        if let Some(capture_pos) = Position::new(capture_file, capture_rank) {
+                            if let Some(target_piece) = self.squares.get(&capture_pos) {
+                                if target_piece.color != piece.color {
+                                    moves.push(capture_pos);
+                                }
                             }
                         }
-                    }
-                    // En passant capture
-                    if let Some(target) = self.en_passant_target {
-                        if target == Position::new(capture_file, capture_rank).unwrap() {
-                            moves.push(target);
+
+                        // En passant capture
+                        if let Some(target) = self.en_passant_target {
+                            if target == Position::new(capture_file, capture_rank).unwrap() {
+                                moves.push(target);
+                            }
                         }
                     }
                 }
@@ -1076,22 +1083,6 @@ mod tests {
         verify_piece_at(&board, 'e', 8, Color::Black, PieceType::King);
     }
 
-    #[test]
-    fn test_en_passant_setup() {
-        let mut board = Board::new();
-
-        // White pawn e2 to e4
-        assert!(board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 4).unwrap(), None).is_ok());
-
-        // Black pawn d7 to d5
-        assert!(board.try_move(Position::new('d', 7).unwrap(), Position::new('d', 5).unwrap(), None).is_ok());
-
-        // Now check positions
-        verify_piece_at(&board, 'e', 4, Color::White, PieceType::Pawn);
-        verify_piece_at(&board, 'd', 5, Color::Black, PieceType::Pawn);
-
-        // (En passant move itself would need full en passant rule implementation later.)
-    }
     #[test]
     fn test_display_initial_board() {
         let board = Board::new();
@@ -1900,6 +1891,7 @@ mod get_legal_moves_tests {
     }
 }
 
+#[cfg(test)]
 mod en_passant_tests {
     use super::*;
 
