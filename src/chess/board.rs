@@ -15,6 +15,7 @@ pub struct Board {
     pub white_can_castle_queenside: bool,
     pub black_can_castle_kingside: bool,
     pub black_can_castle_queenside: bool,
+    pub en_passant_target: Option<Position>,
 }
 
 /// Represents the current state of a chess game.
@@ -38,6 +39,7 @@ impl Board {
             white_can_castle_queenside: true,
             black_can_castle_kingside: true,
             black_can_castle_queenside: true,
+            en_passant_target: None,
         };
         board.reset();
         board
@@ -187,6 +189,7 @@ impl Board {
         self.white_can_castle_queenside = true;
         self.black_can_castle_kingside = true;
         self.black_can_castle_queenside = true;
+        self.en_passant_target = None;
     }
 
     /// Attempts to move a piece from one position to another according to chess rules.
@@ -305,6 +308,21 @@ impl Board {
                 }
             }
         }
+        // EN Passant Hnadling
+        // Set en passant target if pawn double-moved
+        self.en_passant_target = None;
+        if piece.kind == PieceType::Pawn {
+            let diff = (to.rank as i8 - from.rank as i8).abs();
+            if diff == 2 {
+                // Set en passant square behind pawn
+                let file = from.file;
+                let target_rank = from.rank - 1;
+                self.en_passant_target = Some(Position::new(file, target_rank).unwrap());
+            }
+        }
+        else {
+            self.en_passant_target = None;
+        }
         // Switch turn
         self.turn = Self::opponent_color(self.turn);
 
@@ -407,6 +425,15 @@ impl Board {
             Some(p) => p,
             None => return Err("No piece at starting position.".to_string()),
         };
+        // Handle en passant capture
+        if let Some(en_passant_pos) = self.en_passant_target {
+            if piece.kind == PieceType::Pawn && to == en_passant_pos {
+                // Capturing pawn's move matches en passant square
+                let captured_pawn_rank = if piece.color == Color::White { to.rank - 1 } else { to.rank + 1 };
+                let captured_pawn_pos = Position::new(to.file, captured_pawn_rank).unwrap();
+                self.squares.remove(&captured_pawn_pos);
+            }
+        }
         self.squares.insert(to, piece);
         // Disable castling rights
         if let Some(moved_piece) = self.squares.get(&to) {
@@ -717,6 +744,12 @@ impl Board {
                             if target_piece.color != piece.color {
                                 moves.push(capture_pos);
                             }
+                        }
+                    }
+                    // En passant capture
+                    if let Some(target) = self.en_passant_target {
+                        if target == Position::new(capture_file, capture_rank).unwrap() {
+                            moves.push(target);
                         }
                     }
                 }
@@ -1864,5 +1897,49 @@ mod get_legal_moves_tests {
 
         let moves = board.get_legal_moves(Position::new('e', 4).unwrap());
         assert!(moves.is_empty(), "No moves should exist for empty square.");
+    }
+}
+
+mod en_passant_tests {
+    use super::*;
+
+    #[test]
+    fn test_en_passant_available() {
+        let pieces = vec![
+            ('e', 5, Color::White, PieceType::Pawn),
+            ('d', 7, Color::Black, PieceType::Pawn),
+            ('e', 8, Color::Black, PieceType::King),
+            ('a', 8, Color::Black, PieceType::Rook),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::Black, GameState::Ongoing);
+
+        // Black plays d7-d5
+        board.try_move(Position::new('d', 7).unwrap(), Position::new('d', 5).unwrap(), None).unwrap();
+
+        // Now white can en passant capture at d6
+        let moves = board.get_legal_moves(Position::new('e', 5).unwrap());
+        assert!(moves.contains(&Position::new('d', 6).unwrap()), "En passant should be available");
+    }
+
+    #[test]
+    fn test_en_passant_capture_execution() {
+        let pieces = vec![
+            ('e', 5, Color::White, PieceType::Pawn),
+            ('d', 7, Color::Black, PieceType::Pawn),
+            ('e', 8, Color::Black, PieceType::King),
+            ('a', 8, Color::Black, PieceType::Rook),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::Black, GameState::Ongoing);
+
+        // Black plays d7-d5
+        board.try_move(Position::new('d', 7).unwrap(), Position::new('d', 5).unwrap(), None).unwrap();
+
+        // White plays e5xd6 en passant
+        board.try_move(Position::new('e', 5).unwrap(), Position::new('d', 6).unwrap(), None).unwrap();
+
+        assert!(board.squares.get(&Position::new('d', 5).unwrap()).is_none(), "Captured pawn should be gone after en passant.");
+        assert_eq!(board.squares.get(&Position::new('d', 6).unwrap()).unwrap().kind, PieceType::Pawn);
     }
 }
