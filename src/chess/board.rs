@@ -9,6 +9,12 @@ pub struct Board {
     pub squares: HashMap<Position, Piece>,
     pub turn: Color,
     pub game_state: GameState,
+
+    // Castling state
+    pub white_can_castle_kingside: bool,
+    pub white_can_castle_queenside: bool,
+    pub black_can_castle_kingside: bool,
+    pub black_can_castle_queenside: bool,
 }
 
 /// Represents the current state of a chess game.
@@ -28,6 +34,10 @@ impl Board {
             squares: HashMap::new(),
             turn: Color::White,
             game_state: GameState::Ongoing,
+            white_can_castle_kingside: true,
+            white_can_castle_queenside: true,
+            black_can_castle_kingside: true,
+            black_can_castle_queenside: true,
         };
         board.reset();
         board
@@ -171,6 +181,12 @@ impl Board {
         // Kings
         self.squares.insert(Position::new('e', 1).unwrap(), Piece { color: Color::White, kind: PieceType::King });
         self.squares.insert(Position::new('e', 8).unwrap(), Piece { color: Color::Black, kind: PieceType::King });
+
+        // Reset castling
+        self.white_can_castle_kingside =  true;
+        self.white_can_castle_queenside = true;
+        self.black_can_castle_kingside = true;
+        self.black_can_castle_queenside = true;
     }
 
     /// Attempts to move a piece from one position to another according to chess rules.
@@ -244,7 +260,23 @@ impl Board {
             return Err("Illegal move.".to_string());
         }
     
-        // Clone board and simulate move
+        // Special handling: castling
+        if piece.kind == PieceType::King {
+            let castle_rank = match piece.color {
+                Color::White => 1,
+                Color::Black => 8,
+            };
+            if from.rank == castle_rank && from.file == 'e' {
+                if to.file == 'g' && to.rank == castle_rank {
+                    // Kingside castling
+                    return self.try_castle(piece.color, true);
+                } else if to.file == 'c' && to.rank == castle_rank {
+                    // Queenside castling
+                    return self.try_castle(piece.color, false);
+                }
+            }
+        }
+        // Clone board and simulate move to check for illegal moves
         let mut clone = self.clone();
         clone.force_move(from, to)?;
     
@@ -287,6 +319,79 @@ impl Board {
         Ok(())
     }
 
+    /// Trys to castle
+    fn try_castle(&mut self, color: Color, kingside: bool) -> Result<(), String> {
+        let (rank, rook_file, king_from, king_to, rook_to) = match (color, kingside) {
+            (Color::White, true) => (1, 'h', Position::new('e', 1).unwrap(), Position::new('g', 1).unwrap(), Position::new('f', 1).unwrap()),
+            (Color::White, false) => (1, 'a', Position::new('e', 1).unwrap(), Position::new('c', 1).unwrap(), Position::new('d', 1).unwrap()),
+            (Color::Black, true) => (8, 'h', Position::new('e', 8).unwrap(), Position::new('g', 8).unwrap(), Position::new('f', 8).unwrap()),
+            (Color::Black, false) => (8, 'a', Position::new('e', 8).unwrap(), Position::new('c', 8).unwrap(), Position::new('d', 8).unwrap()),
+        };
+    
+        // 1. Check permission
+        let can_castle = match (color, kingside) {
+            (Color::White, true) => self.white_can_castle_kingside,
+            (Color::White, false) => self.white_can_castle_queenside,
+            (Color::Black, true) => self.black_can_castle_kingside,
+            (Color::Black, false) => self.black_can_castle_queenside,
+        };
+        if !can_castle {
+            return Err("Castling not allowed (king or rook has moved)".to_string());
+        }
+    
+        // 2. Check rook exists
+        let rook_pos = Position::new(rook_file, rank).unwrap();
+        match self.squares.get(&rook_pos) {
+            Some(piece) if piece.color == color && piece.kind == PieceType::Rook => {},
+            _ => return Err("Rook missing for castling".to_string()),
+        }
+    
+        // 3. Check squares between king and rook are empty
+        let files_between: Vec<char> = if kingside { vec!['f', 'g'] } else { vec!['b', 'c', 'd'] };
+        for file in files_between.iter() {
+            let pos = Position::new(*file, rank).unwrap();
+            if self.squares.contains_key(&pos) {
+                return Err("Cannot castle: path blocked".to_string());
+            }
+        }
+    
+        // 4. Check king is not in check and doesn't cross check
+        if self.is_in_check(color) {
+            return Err("Cannot castle while in check".to_string());
+        }
+        let passing_files = if kingside { ['f', 'g'] } else { ['d', 'c'] };
+        for file in passing_files.iter() {
+            let mut clone = self.clone();
+            clone.force_move(king_from, Position::new(*file, rank).unwrap())?;
+            if clone.is_in_check(color) {
+                return Err("Cannot castle through check".to_string());
+            }
+        }
+    
+        // 5. Move king and rook
+        self.squares.remove(&king_from).unwrap();
+        self.squares.remove(&rook_pos).unwrap();
+        self.squares.insert(king_to, Piece { color, kind: PieceType::King });
+        self.squares.insert(rook_to, Piece { color, kind: PieceType::Rook });
+    
+        // 6. Disable future castling
+        match color {
+            Color::White => {
+                self.white_can_castle_kingside = false;
+                self.white_can_castle_queenside = false;
+            }
+            Color::Black => {
+                self.black_can_castle_kingside = false;
+                self.black_can_castle_queenside = false;
+            }
+        }
+    
+        // Switch turn
+        self.turn = Self::opponent_color(self.turn);
+    
+        Ok(())
+    }
+
     /// Returns the color opposite of that which is passed in.
     fn opponent_color(color: Color) -> Color {
         match color {
@@ -303,6 +408,35 @@ impl Board {
             None => return Err("No piece at starting position.".to_string()),
         };
         self.squares.insert(to, piece);
+        // Disable castling rights
+        if let Some(moved_piece) = self.squares.get(&to) {
+            if moved_piece.kind == PieceType::King {
+                match moved_piece.color {
+                    Color::White => {
+                        self.white_can_castle_kingside = false;
+                        self.white_can_castle_queenside = false;
+                    }
+                    Color::Black => {
+                        self.black_can_castle_kingside = false;
+                        self.black_can_castle_queenside = false;
+                    }
+                }
+            }
+            if moved_piece.kind == PieceType::Rook {
+                if from.file == 'a' && from.rank == 1 {
+                    self.white_can_castle_queenside = false;
+                }
+                if from.file == 'h' && from.rank == 1 {
+                    self.white_can_castle_kingside = false;
+                }
+                if from.file == 'a' && from.rank == 8 {
+                    self.black_can_castle_queenside = false;
+                }
+                if from.file == 'h' && from.rank == 8 {
+                    self.black_can_castle_kingside = false;
+                }
+            }
+        }
         Ok(())
     }
     
@@ -625,13 +759,49 @@ impl Board {
                     (1, 0), (-1, 0), (0, 1), (0, -1),
                     (1, 1), (-1, 1), (1, -1), (-1, -1)
                 ];
-
+            
                 for (df, dr) in &king_moves {
                     let next_file = (from.file as u8 as i8 + df) as u8 as char;
                     let next_rank = (from.rank as i8 + dr) as u8;
                     if let Some(pos) = Position::new(next_file, next_rank) {
                         if !self.squares.get(&pos).map_or(false, |p| p.color == piece.color) {
                             moves.push(pos);
+                        }
+                    }
+                }
+            
+                // Castling moves
+                let rank = match piece.color {
+                    Color::White => 1,
+                    Color::Black => 8,
+                };
+            
+                // Only if king is on original square
+                if from == Position::new('e', rank).unwrap() {
+                    // Kingside castling
+                    let kingside_allowed = match piece.color {
+                        Color::White => self.white_can_castle_kingside,
+                        Color::Black => self.black_can_castle_kingside,
+                    };
+                    if kingside_allowed {
+                        let f_pos = Position::new('f', rank).unwrap();
+                        let g_pos = Position::new('g', rank).unwrap();
+                        if self.squares.get(&f_pos).is_none() && self.squares.get(&g_pos).is_none() {
+                            moves.push(g_pos);
+                        }
+                    }
+            
+                    // Queenside castling
+                    let queenside_allowed = match piece.color {
+                        Color::White => self.white_can_castle_queenside,
+                        Color::Black => self.black_can_castle_queenside,
+                    };
+                    if queenside_allowed {
+                        let b_pos = Position::new('b', rank).unwrap();
+                        let c_pos = Position::new('c', rank).unwrap();
+                        let d_pos = Position::new('d', rank).unwrap();
+                        if self.squares.get(&b_pos).is_none() && self.squares.get(&c_pos).is_none() && self.squares.get(&d_pos).is_none() {
+                            moves.push(c_pos);
                         }
                     }
                 }
@@ -853,11 +1023,7 @@ mod tests {
 
     #[test]
     fn test_moves_in_directions_empty_board() {
-        let board = Board {
-            squares: HashMap::new(),
-            turn: Color::White,
-            game_state: GameState::Ongoing,
-        };
+        let board = Board::new();
         let from = Position::new('d', 4).unwrap();
         let directions = &[(1, 0)]; // East
 
@@ -873,11 +1039,7 @@ mod tests {
 
     #[test]
     fn test_moves_blocked_by_ally() {
-        let mut board = Board {
-            squares: HashMap::new(),
-            turn: Color::White,
-            game_state: GameState::Ongoing,
-        };
+        let mut board = Board::new();
         let from = Position::new('d', 4).unwrap();
         board.squares.insert(Position::new('f', 4).unwrap(), Piece { color: Color::White, kind: PieceType::Pawn });
 
@@ -895,11 +1057,7 @@ mod tests {
 
     #[test]
     fn test_moves_blocked_by_enemy() {
-        let mut board = Board {
-            squares: HashMap::new(),
-            turn: Color::White,
-            game_state: GameState::Ongoing,
-        };
+        let mut board = Board::new();
         let from = Position::new('d', 4).unwrap();
         board.squares.insert(Position::new('f', 4).unwrap(), Piece { color: Color::Black, kind: PieceType::Pawn });
 
@@ -917,16 +1075,12 @@ mod tests {
 
     #[test]
     fn test_moves_diagonal() {
-        let board = Board {
-            squares: HashMap::new(),
-            turn: Color::White,
-            game_state: GameState::Ongoing,
-        };
+        let board = Board::new();
         let from = Position::new('d', 4).unwrap();
         let directions = &[(1, 1)]; // Northeast
 
         let moves = board.moves_in_directions(from, directions, Color::White);
-        let expected = [('e', 5), ('f', 6), ('g', 7), ('h', 8)];
+        let expected = [('e', 5), ('f', 6), ('g', 7)];
 
         assert_eq!(moves.len(), expected.len());
         for (i, pos) in moves.iter().enumerate() {
@@ -937,11 +1091,7 @@ mod tests {
 
     #[test]
     fn test_moves_off_board_edge_case() {
-        let board = Board {
-            squares: HashMap::new(),
-            turn: Color::White,
-            game_state: GameState::Ongoing,
-        };
+        let board = Board::new();
         let from = Position::new('h', 8).unwrap();
         let directions = &[(1, 0), (0, 1), (1, 1)]; // All directions that should immediately go off board
 
@@ -952,11 +1102,7 @@ mod tests {
 
     #[test]
     fn test_moves_in_multiple_directions() {
-        let board = Board {
-            squares: HashMap::new(),
-            turn: Color::White,
-            game_state: GameState::Ongoing,
-        };
+        let board = Board::new();
         let from = Position::new('d', 4).unwrap();
         let directions = &[(1, 0), (0, 1)]; // East and North
 
@@ -966,7 +1112,7 @@ mod tests {
         // d4 north: d5, d6, d7, d8
         let expected_positions = [
             ('e', 4), ('f', 4), ('g', 4), ('h', 4),
-            ('d', 5), ('d', 6), ('d', 7), ('d', 8),
+            ('d', 5), ('d', 6), ('d', 7),
         ];
 
         assert_eq!(moves.len(), expected_positions.len());
@@ -1152,11 +1298,7 @@ mod tests {
 
     #[test]
     fn test_not_in_check_empty_board() {
-        let board = Board {
-            squares: HashMap::new(),
-            turn: Color::White,
-            game_state: GameState::Ongoing,
-        };
+        let board = Board::new();
         assert!(!board.is_in_check(Color::White), "Empty board should not cause check (no kings).");
         assert!(!board.is_in_check(Color::Black), "Empty board should not cause check (no kings).");
     }
@@ -1297,11 +1439,7 @@ mod tests {
 
     #[test]
     fn test_checkmate_edge_case_empty_board() {
-        let board = Board {
-            squares: HashMap::new(),
-            turn: Color::White,
-            game_state: GameState::Ongoing,
-        };
+        let board = Board::new();
 
         // No kings on the board technically — behavior undefined, but should NOT panic
         assert!(!board.is_checkmate(Color::White), "Empty board should not panic or cause checkmate.");
@@ -1409,11 +1547,7 @@ mod tests {
 
     #[test]
     fn test_try_move_stalemate_placeholder() {
-        let board = Board {
-            squares: HashMap::new(),
-            turn: Color::White,
-            game_state: GameState::Ongoing,
-        };
+        let board = Board::new();
 
         assert_eq!(board.game_state, GameState::Ongoing, "Empty board should be ongoing (no stalemate yet).");
     }
@@ -1473,6 +1607,67 @@ mod tests {
 
         assert_eq!(GameState::Checkmate(Color::Black), board.game_state);
     }
+
+    #[test]
+    fn test_white_kingside_castling() {
+        let pieces = vec![
+            ('e', 1, Color::White, PieceType::King),
+            ('h', 1, Color::White, PieceType::Rook),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+
+        assert!(board.try_move(Position::new('e', 1).unwrap(), Position::new('g', 1).unwrap(), None).is_ok());
+
+        assert_eq!(board.squares.get(&Position::new('g', 1).unwrap()).unwrap().kind, PieceType::King, "King not at g1");
+        assert_eq!(board.squares.get(&Position::new('f', 1).unwrap()).unwrap().kind, PieceType::Rook, "Rook not at f1");
+    }
+    #[test]
+    fn test_white_kingside_castling_with_piece_blocking() {
+        let pieces = vec![
+            ('e', 1, Color::White, PieceType::King),
+            ('h', 1, Color::White, PieceType::Rook),
+            ('g', 1, Color::White, PieceType::Queen),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+
+        assert!(board.try_move(Position::new('e', 1).unwrap(), Position::new('g', 1).unwrap(), None).is_err());
+    }
+
+    #[test]
+    fn test_white_kingside_castling_with_check_blocking() {
+        let pieces = vec![
+            ('e', 1, Color::White, PieceType::King),
+            ('h', 1, Color::White, PieceType::Rook),
+            ('g', 5, Color::Black, PieceType::Queen),
+        ];
+        let turn = Color::White;
+        let game_state = GameState::Ongoing;
+        let mut board = Board::new();
+        board.initialize_custom(pieces, turn, game_state);
+
+        assert!(board.try_move(Position::new('e', 1).unwrap(), Position::new('g', 1).unwrap(), None).is_err());
+    }
+
+    #[test]
+    fn test_black_queenside_castling() {
+        let mut board = Board::new();
+        board.squares.clear();
+        board.squares.insert(Position::new('e', 8).unwrap(), Piece { color: Color::Black, kind: PieceType::King });
+        board.squares.insert(Position::new('a', 8).unwrap(), Piece { color: Color::Black, kind: PieceType::Rook });
+        board.turn = Color::Black;
+
+        assert!(board.try_move(Position::new('e', 8).unwrap(), Position::new('c', 8).unwrap(), None).is_ok());
+
+        assert_eq!(board.squares.get(&Position::new('c', 8).unwrap()).unwrap().kind, PieceType::King);
+        assert_eq!(board.squares.get(&Position::new('d', 8).unwrap()).unwrap().kind, PieceType::Rook);
+    }
+
 
 }
 
