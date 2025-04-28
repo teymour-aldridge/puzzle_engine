@@ -1010,16 +1010,97 @@ mod tests {
         );
     }
 
-    /// Verifies that there is NO piece at a given position.
-    fn verify_empty_at(board: &Board, file: char, rank: u8) {
-        let pos = Position::new(file, rank).expect("Invalid position construction");
-        assert!(
-            !board.squares.contains_key(&pos),
-            "Expected no piece at {}{}, but found one.",
-            file, rank
-        );
+  #[test]
+    fn test_reset_board_setup() {
+        let board = Board::new();
+
+        assert_eq!(board.turn, Color::White);
+        assert_eq!(board.squares.len(), 32);
+
+        for file in 'a'..='h' {
+            verify_piece_at(&board, file, 2, Color::White, PieceType::Pawn);
+            verify_piece_at(&board, file, 7, Color::Black, PieceType::Pawn);
+        }
+
+        for &(file, rank) in &[('a', 1), ('h', 1), ('a', 8), ('h', 8)] {
+            let color = if rank == 1 { Color::White } else { Color::Black };
+            verify_piece_at(&board, file, rank, color, PieceType::Rook);
+        }
+
+        for &(file, rank) in &[('b', 1), ('g', 1), ('b', 8), ('g', 8)] {
+            let color = if rank == 1 { Color::White } else { Color::Black };
+            verify_piece_at(&board, file, rank, color, PieceType::Knight);
+        }
+
+        for &(file, rank) in &[('c', 1), ('f', 1), ('c', 8), ('f', 8)] {
+            let color = if rank == 1 { Color::White } else { Color::Black };
+            verify_piece_at(&board, file, rank, color, PieceType::Bishop);
+        }
+
+        verify_piece_at(&board, 'd', 1, Color::White, PieceType::Queen);
+        verify_piece_at(&board, 'd', 8, Color::Black, PieceType::Queen);
+        verify_piece_at(&board, 'e', 1, Color::White, PieceType::King);
+        verify_piece_at(&board, 'e', 8, Color::Black, PieceType::King);
     }
 
+    #[test]
+    fn test_en_passant_setup() {
+        let mut board = Board::new();
+
+        // White pawn e2 to e4
+        assert!(board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 4).unwrap(), None).is_ok());
+
+        // Black pawn d7 to d5
+        assert!(board.try_move(Position::new('d', 7).unwrap(), Position::new('d', 5).unwrap(), None).is_ok());
+
+        // Now check positions
+        verify_piece_at(&board, 'e', 4, Color::White, PieceType::Pawn);
+        verify_piece_at(&board, 'd', 5, Color::Black, PieceType::Pawn);
+
+        // (En passant move itself would need full en passant rule implementation later.)
+    }
+    #[test]
+    fn test_display_initial_board() {
+        let board = Board::new();
+        let mut output = String::new();
+        board.write_display(&mut output).unwrap();
+
+        // Check critical pieces individually
+
+        // Black back rank (rank 8)
+        assert!(output.contains("8"), "Rank 8 missing");
+        assert!(output.contains("♜"), "Black rook missing");
+        assert!(output.contains("♞"), "Black knight missing");
+        assert!(output.contains("♝"), "Black bishop missing");
+        assert!(output.contains("♛"), "Black queen missing");
+        assert!(output.contains("♚"), "Black king missing");
+
+        // Black pawns (rank 7)
+        assert!(output.contains("7"), "Rank 7 missing");
+        assert!(output.matches('♟').count() >= 8, "Not enough black pawns");
+
+        // White pawns (rank 2)
+        assert!(output.contains("2"), "Rank 2 missing");
+        assert!(output.matches('♙').count() >= 8, "Not enough white pawns");
+
+        // White back rank (rank 1)
+        assert!(output.contains("1"), "Rank 1 missing");
+        assert!(output.contains("♖"), "White rook missing");
+        assert!(output.contains("♘"), "White knight missing");
+        assert!(output.contains("♗"), "White bishop missing");
+        assert!(output.contains("♕"), "White queen missing");
+        assert!(output.contains("♔"), "White king missing");
+
+        // Files printed
+        for file in 'a'..='h' {
+            assert!(output.contains(file), "File {} missing", file);
+        }
+    }
+}
+
+#[cfg(test)]
+mod moves_in_direction_tests {
+    use super::*;
 
     #[test]
     fn test_moves_in_directions_empty_board() {
@@ -1120,93 +1201,10 @@ mod tests {
             assert!(moves.contains(&Position::new(expected.0, expected.1).unwrap()));
         }
     }
-
-  #[test]
-    fn test_reset_board_setup() {
-        let board = Board::new();
-
-        assert_eq!(board.turn, Color::White);
-        assert_eq!(board.squares.len(), 32);
-
-        for file in 'a'..='h' {
-            verify_piece_at(&board, file, 2, Color::White, PieceType::Pawn);
-            verify_piece_at(&board, file, 7, Color::Black, PieceType::Pawn);
-        }
-
-        for &(file, rank) in &[('a', 1), ('h', 1), ('a', 8), ('h', 8)] {
-            let color = if rank == 1 { Color::White } else { Color::Black };
-            verify_piece_at(&board, file, rank, color, PieceType::Rook);
-        }
-
-        for &(file, rank) in &[('b', 1), ('g', 1), ('b', 8), ('g', 8)] {
-            let color = if rank == 1 { Color::White } else { Color::Black };
-            verify_piece_at(&board, file, rank, color, PieceType::Knight);
-        }
-
-        for &(file, rank) in &[('c', 1), ('f', 1), ('c', 8), ('f', 8)] {
-            let color = if rank == 1 { Color::White } else { Color::Black };
-            verify_piece_at(&board, file, rank, color, PieceType::Bishop);
-        }
-
-        verify_piece_at(&board, 'd', 1, Color::White, PieceType::Queen);
-        verify_piece_at(&board, 'd', 8, Color::Black, PieceType::Queen);
-        verify_piece_at(&board, 'e', 1, Color::White, PieceType::King);
-        verify_piece_at(&board, 'e', 8, Color::Black, PieceType::King);
-    }
-
-    #[test]
-    fn test_en_passant_setup() {
-        let mut board = Board::new();
-
-        // White pawn e2 to e4
-        assert!(board.try_move(Position::new('e', 2).unwrap(), Position::new('e', 4).unwrap(), None).is_ok());
-
-        // Black pawn d7 to d5
-        assert!(board.try_move(Position::new('d', 7).unwrap(), Position::new('d', 5).unwrap(), None).is_ok());
-
-        // Now check positions
-        verify_piece_at(&board, 'e', 4, Color::White, PieceType::Pawn);
-        verify_piece_at(&board, 'd', 5, Color::Black, PieceType::Pawn);
-
-        // (En passant move itself would need full en passant rule implementation later.)
-    }
-    #[test]
-    fn test_display_initial_board() {
-        let board = Board::new();
-        let mut output = String::new();
-        board.write_display(&mut output).unwrap();
-
-        // Check critical pieces individually
-
-        // Black back rank (rank 8)
-        assert!(output.contains("8"), "Rank 8 missing");
-        assert!(output.contains("♜"), "Black rook missing");
-        assert!(output.contains("♞"), "Black knight missing");
-        assert!(output.contains("♝"), "Black bishop missing");
-        assert!(output.contains("♛"), "Black queen missing");
-        assert!(output.contains("♚"), "Black king missing");
-
-        // Black pawns (rank 7)
-        assert!(output.contains("7"), "Rank 7 missing");
-        assert!(output.matches('♟').count() >= 8, "Not enough black pawns");
-
-        // White pawns (rank 2)
-        assert!(output.contains("2"), "Rank 2 missing");
-        assert!(output.matches('♙').count() >= 8, "Not enough white pawns");
-
-        // White back rank (rank 1)
-        assert!(output.contains("1"), "Rank 1 missing");
-        assert!(output.contains("♖"), "White rook missing");
-        assert!(output.contains("♘"), "White knight missing");
-        assert!(output.contains("♗"), "White bishop missing");
-        assert!(output.contains("♕"), "White queen missing");
-        assert!(output.contains("♔"), "White king missing");
-
-        // Files printed
-        for file in 'a'..='h' {
-            assert!(output.contains(file), "File {} missing", file);
-        }
-    }
+}
+#[cfg(test)]
+mod check_tests {
+    use super::*;
 
     #[test]
     fn test_not_in_check_starting_position() {
@@ -1335,6 +1333,11 @@ mod tests {
         assert!(!board.is_checkmate(Color::White), "White should not be checkmated at starting position.");
         assert!(!board.is_checkmate(Color::Black), "Black should not be checkmated at starting position.");
     }
+}
+
+#[cfg(test)]
+mod checkmake_tests {
+    use super::*;
 
     #[test]
     fn test_simple_check_but_not_checkmate() {
@@ -1463,6 +1466,10 @@ mod tests {
         assert!(!board.is_checkmate(Color::White), "Empty board should not panic or cause checkmate.");
         assert!(!board.is_checkmate(Color::Black), "Empty board should not panic or cause checkmate.");
     }
+}
+#[cfg(test)]
+mod try_move_tests {
+    use super::*;
 
     #[test]
     fn test_try_move_successful_normal_move() {
@@ -1567,6 +1574,10 @@ mod tests {
             other => panic!("Expected White to be checkmated in Fool's Mate, found {:?}", other),
         }
     }
+}
+#[cfg(test)]
+mod promotion_tests {
+    use super::*;
     #[test]
     fn test_pawn_promotion_to_queen() {
         let mut board = Board::new();
@@ -1607,6 +1618,10 @@ mod tests {
 
         assert_eq!(GameState::Checkmate(Color::Black), board.game_state);
     }
+}
+#[cfg(test)]
+mod castle_tests {
+    use super::*;
 
     #[test]
     fn test_white_kingside_castling() {
@@ -1656,18 +1671,198 @@ mod tests {
 
     #[test]
     fn test_black_queenside_castling() {
+        let pieces = vec![
+            ('e', 8, Color::Black, PieceType::King),
+            ('a', 8, Color::Black, PieceType::Rook),
+        ];
+        let turn = Color::Black;
+        let game_state = GameState::Ongoing;
         let mut board = Board::new();
-        board.squares.clear();
-        board.squares.insert(Position::new('e', 8).unwrap(), Piece { color: Color::Black, kind: PieceType::King });
-        board.squares.insert(Position::new('a', 8).unwrap(), Piece { color: Color::Black, kind: PieceType::Rook });
-        board.turn = Color::Black;
+        board.initialize_custom(pieces, turn, game_state);
 
         assert!(board.try_move(Position::new('e', 8).unwrap(), Position::new('c', 8).unwrap(), None).is_ok());
 
         assert_eq!(board.squares.get(&Position::new('c', 8).unwrap()).unwrap().kind, PieceType::King);
         assert_eq!(board.squares.get(&Position::new('d', 8).unwrap()).unwrap().kind, PieceType::Rook);
     }
-
-
 }
 
+#[cfg(test)]
+mod get_legal_moves_tests {
+    use super::*;
+
+    #[test]
+    fn test_pawn_initial_double_move() {
+        let pieces = vec![
+            ('e', 2, Color::White, PieceType::Pawn),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        let moves = board.get_legal_moves(Position::new('e', 2).unwrap());
+        assert!(moves.contains(&Position::new('e', 3).unwrap()), "Pawn should move forward 1 square.");
+        assert!(moves.contains(&Position::new('e', 4).unwrap()), "Pawn should move forward 2 squares on first move.");
+    }
+
+    #[test]
+    fn test_pawn_blocked_forward() {
+        let pieces = vec![
+            ('e', 2, Color::White, PieceType::Pawn),
+            ('e', 3, Color::Black, PieceType::Pawn),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        let moves = board.get_legal_moves(Position::new('e', 2).unwrap());
+        assert!(moves.is_empty(), "Pawn should not move if blocked.");
+    }
+
+    #[test]
+    fn test_pawn_capture_diagonal() {
+        let pieces = vec![
+            ('d', 4, Color::White, PieceType::Pawn),
+            ('c', 5, Color::Black, PieceType::Pawn),
+            ('e', 5, Color::Black, PieceType::Pawn),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        let moves = board.get_legal_moves(Position::new('d', 4).unwrap());
+        assert!(moves.contains(&Position::new('c', 5).unwrap()), "Pawn should capture diagonally left.");
+        assert!(moves.contains(&Position::new('e', 5).unwrap()), "Pawn should capture diagonally right.");
+    }
+
+    #[test]
+    fn test_knight_movement_open_board() {
+        let pieces = vec![
+            ('d', 4, Color::White, PieceType::Knight),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        let moves = board.get_legal_moves(Position::new('d', 4).unwrap());
+        let expected_positions = [
+            ('c', 6), ('e', 6),
+            ('b', 5), ('f', 5),
+            ('b', 3), ('f', 3),
+            ('c', 2), ('e', 2),
+        ];
+        for (file, rank) in expected_positions.iter() {
+            assert!(moves.contains(&Position::new(*file, *rank).unwrap()), "Knight move to {}{} missing.", file, rank);
+        }
+    }
+
+    #[test]
+    fn test_rook_movement_clear() {
+        let pieces = vec![
+            ('d', 4, Color::White, PieceType::Rook),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        let moves = board.get_legal_moves(Position::new('d', 4).unwrap());
+        let expected_positions = [
+            ('d', 5), ('d', 6), ('d', 7), ('d', 8),
+            ('d', 3), ('d', 2), ('d', 1),
+            ('e', 4), ('f', 4), ('g', 4), ('h', 4),
+            ('c', 4), ('b', 4), ('a', 4),
+        ];
+        for (file, rank) in expected_positions.iter() {
+            assert!(moves.contains(&Position::new(*file, *rank).unwrap()), "Rook move to {}{} missing.", file, rank);
+        }
+    }
+
+    #[test]
+    fn test_bishop_movement_clear() {
+        let pieces = vec![
+            ('d', 4, Color::White, PieceType::Bishop),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        let moves = board.get_legal_moves(Position::new('d', 4).unwrap());
+        let expected_positions = [
+            ('e', 5), ('f', 6), ('g', 7), ('h', 8),
+            ('c', 5), ('b', 6), ('a', 7),
+            ('e', 3), ('f', 2), ('g', 1),
+            ('c', 3), ('b', 2), ('a', 1),
+        ];
+        for (file, rank) in expected_positions.iter() {
+            assert!(moves.contains(&Position::new(*file, *rank).unwrap()), "Bishop move to {}{} missing.", file, rank);
+        }
+    }
+
+    #[test]
+    fn test_queen_movement_clear() {
+        let pieces = vec![
+            ('d', 4, Color::White, PieceType::Queen),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        let moves = board.get_legal_moves(Position::new('d', 4).unwrap());
+
+        assert!(moves.contains(&Position::new('d', 5).unwrap()), "Queen vertical move missing.");
+        assert!(moves.contains(&Position::new('e', 5).unwrap()), "Queen diagonal move missing.");
+        assert!(moves.contains(&Position::new('h', 4).unwrap()), "Queen horizontal move missing.");
+    }
+
+    #[test]
+    fn test_king_movement_clear() {
+        let pieces = vec![
+            ('e', 4, Color::White, PieceType::King),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        let moves = board.get_legal_moves(Position::new('e', 4).unwrap());
+        let expected_positions = [
+            ('d', 4), ('f', 4),
+            ('e', 5), ('e', 3),
+            ('d', 5), ('f', 5),
+            ('d', 3), ('f', 3),
+        ];
+        for (file, rank) in expected_positions.iter() {
+            assert!(moves.contains(&Position::new(*file, *rank).unwrap()), "King move to {}{} missing.", file, rank);
+        }
+    }
+
+    #[test]
+    fn test_king_castling_moves_allowed() {
+        let pieces = vec![
+            ('e', 1, Color::White, PieceType::King),
+            ('h', 1, Color::White, PieceType::Rook),
+            ('a', 1, Color::White, PieceType::Rook),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        let moves = board.get_legal_moves(Position::new('e', 1).unwrap());
+        assert!(moves.contains(&Position::new('g', 1).unwrap()), "Kingside castling move should be allowed.");
+        assert!(moves.contains(&Position::new('c', 1).unwrap()), "Queenside castling move should be allowed.");
+    }
+
+    #[test]
+    fn test_king_castling_blocked_path() {
+        let pieces = vec![
+            ('e', 1, Color::White, PieceType::King),
+            ('h', 1, Color::White, PieceType::Rook),
+            ('f', 1, Color::White, PieceType::Knight), // Blocking kingside
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        let moves = board.get_legal_moves(Position::new('e', 1).unwrap());
+        assert!(!moves.contains(&Position::new('g', 1).unwrap()), "Kingside castling should not be allowed if path is blocked.");
+    }
+
+    #[test]
+    fn test_get_legal_moves_empty_square() {
+        let pieces = vec![];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        let moves = board.get_legal_moves(Position::new('e', 4).unwrap());
+        assert!(moves.is_empty(), "No moves should exist for empty square.");
+    }
+}
