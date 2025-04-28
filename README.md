@@ -21,7 +21,7 @@ This crate currently includes support for the following:
 - **Caesar**, A simple cipher where each letter is shifted by a fixed number of positions in the alphabet.
 - **Vigenere**, A simple cipher where each character is encrypted using a corresponding shift from the keyword.  
 ### Chess  
-- **Chess Engine** — A fully functional chess board supporting move validation, piece movement, and board visualization.  
+- **Chess Engine** — A fully functional chess board supporting move validation, piece movement, and board visualization. This version supports castling, en passant, checks, and checkmates. Stalemate and draws due to repeated moves are yet to come.
 ---
 
 ## 🚀 Features
@@ -32,7 +32,7 @@ This crate currently includes support for the following:
 ✅ Built-in test coverage and examples  
 ✅ Easy to extend with other puzzles in the future   
 ✅ Simple ciphers  
-✅ Playable chess board with legal move generation  
+✅ Playable chess board with all rules included (except for stalemate and draw due to repeated moves) 
 ✅ Text-based visualization of chess games  
 
 ---
@@ -122,7 +122,7 @@ Planned puzzle modules:
 
 - [x] Grid Maze (DFS-based)
 - [x] Network Maze
-- [x] Chess Board with move validation
+- [ ] Fully featured Chess Game
 - [ ] More Ciphers
 - [ ] Nonograms
 - [ ] Word search / Crossword generator
