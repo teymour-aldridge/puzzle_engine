@@ -326,11 +326,12 @@ impl Board {
         // Switch turn
         self.turn = Self::opponent_color(self.turn);
 
-        // After move, check if opponent is checkmated
+        // After move, check if opponent is checkmated or stalemated
         if self.is_checkmate(self.turn) {
             self.game_state = GameState::Checkmate(self.turn);
-        }
-        else {
+        } else if self.is_stalemate(self.turn) {
+            self.game_state = GameState::Draw;
+        } else {
             self.game_state = GameState::Ongoing;
         }
 
@@ -636,6 +637,85 @@ impl Board {
             }
         }
     
+        true
+    }
+
+    /// Determines whether the player of the given color is currently stalemated.
+    ///
+    /// In chess, a **stalemate** occurs when the player whose turn it is:
+    /// - Is **not** in check.
+    /// - **Has no legal moves** available.
+    ///
+    /// Stalemate immediately ends the game in a **draw**.
+    ///
+    /// # Arguments
+    ///
+    /// - `color` — The [`Color`] of the player to evaluate for stalemate (`Color::White` or `Color::Black`).
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if the specified player is stalemated, otherwise `false`.
+    ///
+    /// # Behavior
+    ///
+    /// - If the player is in check, stalemate is impossible and `false` is returned.
+    /// - Otherwise, all possible legal moves for the player are simulated.
+    ///   - If no move removes the king from threat or progresses the game, `true` is returned.
+    ///   - If at least one legal move exists, `false` is returned.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use puzzle_engine::chess::*;
+    ///
+    /// fn main() {
+    ///     let pieces = vec![
+    ///         ('h', 1, Color::White, PieceType::King),
+    ///         ('f', 2, Color::Black, PieceType::Queen),
+    ///         ('g', 3, Color::Black, PieceType::King),
+    ///     ];
+    ///     let mut board = Board::new();
+    ///     board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+    ///
+    ///     assert!(board.is_stalemate(Color::White));
+    ///     assert_eq!(board.game_state, GameState::Ongoing); // `try_move` updates the game state automatically
+    /// }
+    /// ```
+    ///
+    /// # Notes
+    ///
+    /// - This method evaluates stalemate **only** for the specified color and **does not** modify the [`GameState`].
+    ///   - To automatically update the game state based on moves, use [`Board::try_move`] instead.
+    /// - A stalemate is different from a checkmate:
+    ///   - In stalemate, the king is **not** in check but no legal moves are possible.
+    ///   - In checkmate, the king **is** under direct threat and cannot escape.
+    /// - If the board has an invalid state (e.g., missing kings), behavior is undefined but safe (returns `false`).
+    ///
+    /// # Related
+    ///
+    /// - [`Board::is_checkmate`] — Determines if a player is checkmated.
+    /// - [`Board::is_in_check`] — Determines if a player is currently in check.
+    /// - [`Board::try_move`] — Attempts a move and automatically updates checkmate and stalemate conditions.
+    ///
+    pub fn is_stalemate(&self, color: Color) -> bool {
+        if self.is_in_check(color) {
+            return false;
+        }
+
+        for (from, piece) in &self.squares {
+            if piece.color != color {
+                continue;
+            }
+
+            let legal_moves = self.get_legal_moves(*from);
+            for to in legal_moves {
+                let mut cloned = self.clone();
+                if cloned.force_move(*from, to).is_ok() && !cloned.is_in_check(color) {
+                    return false;
+                }
+            }
+        }
+
         true
     }
 
@@ -1935,3 +2015,90 @@ mod en_passant_tests {
         assert_eq!(board.squares.get(&Position::new('d', 6).unwrap()).unwrap().kind, PieceType::Pawn);
     }
 }
+
+#[cfg(test)]
+mod stalemate_tests {
+    use super::*;
+
+    #[test]
+    fn test_simple_stalemate_position() {
+        let pieces = vec![
+            ('h', 1, Color::White, PieceType::King),
+            ('f', 2, Color::Black, PieceType::Queen),
+            ('g', 3, Color::Black, PieceType::King),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        assert!(board.is_stalemate(Color::White), "White should be stalemated in this position.");
+    }
+
+    #[test]
+    fn test_not_stalemate_king_can_move() {
+        let pieces = vec![
+            ('h', 1, Color::White, PieceType::King),
+            ('f', 1, Color::Black, PieceType::Queen),
+            ('g', 2, Color::Black, PieceType::King),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        assert!(!board.is_stalemate(Color::White), "White should not be stalemated (king has legal moves).");
+    }
+
+    #[test]
+    fn test_stalemate_with_multiple_pieces_on_board() {
+        let pieces = vec![
+            ('a', 1, Color::White, PieceType::King),
+            ('c', 2, Color::Black, PieceType::Queen),
+            ('b', 4, Color::Black, PieceType::Bishop),
+            ('b', 3, Color::White, PieceType::Pawn),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        assert!(board.is_stalemate(Color::White), "White should be stalemated even with other pieces on board.");
+    }
+
+    #[test]
+    fn test_not_stalemate_in_check() {
+        let pieces = vec![
+            ('a', 1, Color::White, PieceType::King),
+            ('c', 3, Color::Black, PieceType::Queen),
+            ('b', 4, Color::Black, PieceType::Bishop),
+            ('b', 3, Color::White, PieceType::Pawn),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        assert!(!board.is_stalemate(Color::White), "White is in check, so not stalemate.");
+    }
+
+    #[test]
+    fn test_no_legal_moves_but_in_checkmate_not_stalemate() {
+        let pieces = vec![
+            ('a', 1, Color::White, PieceType::King),
+            ('b', 2, Color::Black, PieceType::Queen),
+            ('c', 3, Color::Black, PieceType::Bishop),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::White, GameState::Ongoing);
+
+        assert!(!board.is_stalemate(Color::White), "White is in checkmate, not stalemate.");
+        assert!(board.is_checkmate(Color::White), "White is in checkmate, not stalemate.");
+    }
+
+    #[test]
+    fn test_black_stalemated_simple() {
+        let pieces = vec![
+            ('a', 8, Color::Black, PieceType::King),
+            ('c', 7, Color::White, PieceType::Queen),
+            ('b', 6, Color::White, PieceType::King),
+        ];
+        let mut board = Board::new();
+        board.initialize_custom(pieces, Color::Black, GameState::Ongoing);
+
+        assert!(board.is_stalemate(Color::Black), "Black should be stalemated.");
+    }
+}
+
