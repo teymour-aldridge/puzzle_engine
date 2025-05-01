@@ -18,5 +18,14 @@ jobs:
     - uses: actions/checkout@v4
     - name: Build
       run: cargo build --verbose
+      
+  test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
     - name: Run tests
       run: cargo test --verbose
+    - name: Check for warnings
+      run: cargo clippy --verbose
