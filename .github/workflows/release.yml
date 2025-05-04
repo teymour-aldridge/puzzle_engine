@@ -25,10 +25,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-      - name: Github Release
-        uses: softprops/action-gh-release@v1
-        with:
-          generate_release_notes: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-          name: ${{ github.ref_name }}
+    - uses: actions/checkout@v4
+
+    - name: Set up Rust
+      uses: actions/setup-rust@v1
+      with:
+        rust-version: stable
+
+    - name: Build release binary
+      run: cargo build --release
+
+    - name: Upload Release Asset
+      uses: softprops/action-gh-release@v1
+      with:
+        generate_release_notes: true
+        token: ${{ secrets.GITHUB_TOKEN }}
+        name: ${{ github.ref_name }}
+        files: |
+          target/release/libpuzzle_engine.rlib
