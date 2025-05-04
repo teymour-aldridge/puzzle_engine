@@ -38,3 +38,6 @@ jobs:
         name: ${{ github.ref_name }}
         files: |
           target/release/libpuzzle_engine.rlib
+
+    - name: Publish to crates.io
+      run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
