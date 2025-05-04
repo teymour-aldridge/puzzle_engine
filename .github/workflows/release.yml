@@ -27,11 +27,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Rust
-      uses: rust-lang/setup-rust@v1
-      with:
-        rust-version: stable
-
     - name: Build release binary
       run: cargo build --release
 
