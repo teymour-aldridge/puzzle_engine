@@ -8,6 +8,7 @@ pub struct Position {
 }
 
 impl Position {
+    #[must_use]
     pub fn new(file: char, rank: u8) -> Option<Self> {
         if ('a'..='h').contains(&file) && (1..=8).contains(&rank) {
             Some(Self { file, rank })

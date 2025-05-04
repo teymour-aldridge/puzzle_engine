@@ -5,6 +5,7 @@ use std::fmt::Write as FmtWrite;
 
 /// Represents the chess board.
 #[derive(Clone, Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Board {
     pub squares: HashMap<Position, Piece>,
     pub turn: Color,
@@ -930,7 +931,6 @@ impl Board {
 
         moves
     }
-
     /// Move outward in given directions until blocked.
     fn moves_in_directions(&self, from: Position, directions: &[(i8, i8)], color: Color) -> Vec<Position> {
         let mut moves = Vec::new();
@@ -1075,11 +1075,12 @@ impl Board {
     /// - [`Board::display`] — Convenience method to print directly to standard output (`stdout`).
     /// - [`std::fmt::Write`] — Trait used for the output target.
     ///
+    #[allow(clippy::missing_panics_doc)]
     pub fn write_display<W: FmtWrite>(&self, w: &mut W) -> std::fmt::Result {
         for rank in (1..=8).rev() {
-            write!(w, "{} ", rank)?;
+            write!(w, "{rank} ")?;
             for file in 'a'..='h' {
-                let pos = Position::new(file, rank).expect("Invalid position construction");
+                let pos = Position::new(file, rank).unwrap();
                 if let Some(piece) = self.squares.get(&pos) {
                     let symbol = match (piece.color, piece.kind) {
                         (Color::White, PieceType::Pawn) => '♙',
@@ -1095,7 +1096,7 @@ impl Board {
                         (Color::Black, PieceType::Queen) => '♛',
                         (Color::Black, PieceType::King) => '♚',
                     };
-                    write!(w, " {} ", symbol)?;
+                    write!(w, " {symbol} ")?;
                 } else {
                     write!(w, " . ")?;
                 }
