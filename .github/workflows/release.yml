@@ -19,7 +19,7 @@ jobs:
       run: cargo test --doc
 
   release:
-    name: Create Github Release + Publish to Marketplace
+    name: Create Github Release
     needs: test
     if: startswith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
