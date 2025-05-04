@@ -4,7 +4,7 @@
 [![Documentation](https://docs.rs/puzzle_engine/badge.svg)](https://docs.rs/puzzle_engine)
 [![CI](https://github.com/Andrewsimsd/puzzle_engine/actions/workflows/CI.yml/badge.svg)](https://github.com/Andrewsimsd/puzzle_engine/actions)
 [![License](https://img.shields.io/crates/l/puzzle_engine)](LICENSE)
-[![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?logo=github)](https://github.com/andrewsimsd/puzzle_engine)
+[![GitHub](https://img.shields.io/github/stars/chrisdbeard/rustdocstring?style=social)](https://github.com/andrewsimsd/puzzle_engine)
 
 A modular Rust engine for building and solving puzzles.
 
