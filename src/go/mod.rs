@@ -12,3 +12,4 @@
 //! - Score calculation
 
 pub mod board;
+pub mod game;
