@@ -22,21 +22,31 @@ This crate currently includes support for the following:
 - **Caesar**, A simple cipher where each letter is shifted by a fixed number of positions in the alphabet.
 - **Vigenere**, A simple cipher where each character is encrypted using a corresponding shift from the keyword.  
 ### Chess  
-- **Chess Engine** — A fully functional chess board supporting move validation, piece movement, and board visualization. This version supports castling, en passant, checks, and checkmates. Stalemate and draws due to repeated moves are yet to come.
----
+- **Chess Engine** — A fully functional chess board supporting move validation, piece movement, and board visualization.  
 
-## 🚀 Features
+## ♟️ Example: Chess Board
 
-✅ Procedural maze generation using randomized DFS  
-✅ Minimal API to move through and solve mazes  
-✅ Fully connected mazes — no isolated areas  
-✅ Built-in test coverage and examples  
-✅ Easy to extend with other puzzles in the future   
-✅ Simple ciphers  
-✅ Playable chess board with all rules included (except for stalemate and draw due to repeated moves)  
-✅ Text-based visualization of chess games  
+```rust
+use puzzle_engine::chess::*;
 
----
+fn main() {
+    let mut board = Board::new();
+
+    board.display(); // Print the initial board
+
+    let from = Position::new('e', 2).unwrap();
+    let to = Position::new('e', 4).unwrap();
+
+    // Attempt a pawn move: e2 -> e4
+    if board.try_move(from, to).is_ok() {
+        println!("Move successful!");
+    } else {
+        println!("Move failed!");
+    }
+
+    board.display(); // See the updated board
+}
+```
 
 ## 🧩 Example: Grid Maze
 
@@ -91,30 +101,6 @@ fn main() {
 }
 ```
 
-## ♟️ Example: Chess Board
-
-```rust
-use puzzle_engine::chess::*;
-
-fn main() {
-    let mut board = Board::new();
-
-    board.display(); // Print the initial board
-
-    let from = Position::new('e', 2).unwrap();
-    let to = Position::new('e', 4).unwrap();
-
-    // Attempt a pawn move: e2 -> e4
-    if board.try_move(from, to).is_ok() {
-        println!("Move successful!");
-    } else {
-        println!("Move failed!");
-    }
-
-    board.display(); // See the updated board
-}
-```
-
 ---
 
 ## 🔮 Roadmap
@@ -123,7 +109,8 @@ Planned puzzle modules:
 
 - [x] Grid Maze (DFS-based)
 - [x] Network Maze
-- [ ] Fully featured Chess Game
+- [x] Fully featured Chess Game
+- [x] Fully featured Go Game
 - [ ] More Ciphers
 - [ ] Nonograms
 - [ ] Word search / Crossword generator
