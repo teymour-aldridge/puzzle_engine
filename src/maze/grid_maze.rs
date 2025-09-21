@@ -18,6 +18,7 @@ pub enum Direction {
 }
 
 /// A maze generated using randomized DFS, with support for traversal.
+#[derive(Clone)]
 pub struct Maze {
     width: usize,
     height: usize,
